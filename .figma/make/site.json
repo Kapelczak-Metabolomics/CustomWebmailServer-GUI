@@ -1,0 +1,10 @@
+{
+  "description": "Experience a sleek and modern webmail application designed for seamless email management, offering users intuitive navigation and efficient communication.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
