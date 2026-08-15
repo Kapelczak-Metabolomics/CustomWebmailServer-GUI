@@ -138,10 +138,18 @@ export default function ConversationList() {
               ? users.find((u) => u.id === c.assigneeId)
               : null
             return (
-              <button
+              <div
                 key={c.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => handleSelect(c.id)}
-                className="w-full text-left px-4 py-3 border-b transition-colors"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    handleSelect(c.id)
+                  }
+                }}
+                className="w-full text-left px-4 py-3 border-b transition-colors cursor-pointer"
                 style={{
                   backgroundColor:
                     selectedId === c.id ? t.rowSelected : "transparent",
@@ -269,7 +277,7 @@ export default function ConversationList() {
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             )
           })
         )}
