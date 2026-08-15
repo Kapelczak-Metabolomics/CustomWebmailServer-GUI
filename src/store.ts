@@ -522,6 +522,7 @@ export const useStore = create<StoreState>()(
     {
       name: "custom-webmail-storage",
       partialize: (state) => ({
+        currentUser: state.currentUser,
         users: state.users,
         mailboxes: state.mailboxes,
         contacts: state.contacts,
