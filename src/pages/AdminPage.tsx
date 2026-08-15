@@ -1,0 +1,577 @@
+import { useState } from "react"
+import Layout from "../components/Layout"
+import { useTheme } from "../theme"
+import { useStore } from "../store"
+import { Users, Mail, Workflow, Plus, X, Check, Package } from "lucide-react"
+
+const MODULES = [
+  "API & Webhooks",
+  "Auto Login",
+  "Block External Images",
+  "Chat",
+  "Checklists",
+  "CRM",
+  "Custom Fields",
+  "Custom Folders",
+  "Custom Homepage",
+  "Custom Signatures",
+  "Customer Data Enrichment",
+  "Customization",
+  "Dark Mode",
+  "Easy Digital Downloads",
+  "Email Commands",
+  "Embed Images",
+  "End-User Portal",
+  "Export Conversations",
+  "Extended Attachments",
+  "Extended Editor",
+  "Extra Security",
+  "Facebook",
+  "Faster Search",
+  "Followers",
+  "GDPR",
+  "Global Mailbox",
+  "IMAP Move",
+  "Inbox",
+  "Jira",
+  "Kanban",
+  "Keyboard Shortcuts",
+  "Knowledge Base",
+  "LDAP",
+  "Mail Signing",
+  "Mailbox Icons",
+  "Mentions",
+  "Mobile Notifications",
+  "No-Reply",
+  "OAuth Login",
+  "Office Hours",
+  "Out of Office",
+  "Reports",
+  "Rocket.Chat",
+  "SAML",
+  "Satisfaction Ratings",
+  "Saved Replies",
+  "Send & Close",
+  "Send Later",
+  "Sender Time Zone",
+  "Sent Folder",
+  "Slack",
+  "SMS Notifications",
+  "SMS Tickets",
+  "Snooze",
+  "Spam Filter",
+  "Sticky Notes",
+  "Tags",
+  "Teams",
+  "Telegram Integration",
+  "Telegram",
+  "Ticket Number",
+  "Ticket Translator",
+  "Time Tracking",
+  "Twitter",
+  "Two-Factor Auth",
+  "User Fields",
+  "Wallboards",
+  "WhatsApp",
+  "White Label",
+  "WooCommerce",
+  "Workflows",
+]
+
+export default function AdminPage() {
+  const { tokens: t } = useTheme()
+  const users = useStore((s) => s.users)
+  const mailboxes = useStore((s) => s.mailboxes)
+  const workflows = useStore((s) => s.workflows)
+  const addUser = useStore((s) => s.addUser)
+  const addMailbox = useStore((s) => s.addMailbox)
+  const addWorkflow = useStore((s) => s.addWorkflow)
+
+  const [activeTab, setActiveTab] =
+    useState<"users" | "mailboxes" | "workflows" | "modules">("users")
+  const [showAddUser, setShowAddUser] = useState(false)
+  const [showAddMailbox, setShowAddMailbox] = useState(false)
+  const [showAddWorkflow, setShowAddWorkflow] = useState(false)
+  const [enabledModules, setEnabledModules] = useState<Record<string, boolean>>(
+    {},
+  )
+
+  const [userForm, setUserForm] = useState({
+    name: "",
+    email: "",
+    role: "agent" as any,
+  })
+  const [mbForm, setMbForm] = useState({
+    name: "",
+    email: "",
+    color: "#2896E8",
+  })
+  const [wfForm, setWfForm] = useState({
+    name: "",
+    conditions: "",
+    actions: "",
+  })
+
+  function submitUser() {
+    if (!userForm.name || !userForm.email) return
+    addUser({ name: userForm.name, email: userForm.email, role: userForm.role })
+    setUserForm({ name: "", email: "", role: "agent" })
+    setShowAddUser(false)
+  }
+
+  function submitMailbox() {
+    if (!mbForm.name || !mbForm.email) return
+    addMailbox({ name: mbForm.name, email: mbForm.email, color: mbForm.color })
+    setMbForm({ name: "", email: "", color: "#2896E8" })
+    setShowAddMailbox(false)
+  }
+
+  function submitWorkflow() {
+    if (!wfForm.name || !wfForm.conditions || !wfForm.actions) return
+    addWorkflow({
+      name: wfForm.name,
+      conditions: wfForm.conditions,
+      actions: wfForm.actions,
+    })
+    setWfForm({ name: "", conditions: "", actions: "" })
+    setShowAddWorkflow(false)
+  }
+
+  const TabButton = ({
+    id,
+    label,
+    icon: Icon,
+  }: {
+    id: typeof activeTab
+    label: string
+    icon: any
+  }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+      style={{
+        backgroundColor: activeTab === id ? t.accent : t.inputBg,
+        color: activeTab === id ? "#fff" : t.textSub,
+      }}
+    >
+      <Icon className="w-4 h-4" /> {label}
+    </button>
+  )
+
+  return (
+    <Layout>
+      <div className="h-full overflow-y-auto p-6">
+        <h1 className="text-xl font-semibold mb-6" style={{ color: t.text }}>
+          Admin
+        </h1>
+
+        <div className="flex flex-wrap gap-2 mb-6">
+          <TabButton id="users" label="Users" icon={Users} />
+          <TabButton id="mailboxes" label="Mailboxes" icon={Mail} />
+          <TabButton id="workflows" label="Workflows" icon={Workflow} />
+          <TabButton id="modules" label="Modules" icon={Package} />
+        </div>
+
+        {activeTab === "users" && (
+          <div
+            className="rounded-xl p-5"
+            style={{
+              backgroundColor: t.card,
+              border: `1px solid ${t.cardBorder}`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold" style={{ color: t.text }}>
+                Team members
+              </h3>
+              <button
+                onClick={() => setShowAddUser(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                style={{ background: t.accentGrad }}
+              >
+                <Plus className="w-3.5 h-3.5" /> Add user
+              </button>
+            </div>
+            <div className="space-y-2">
+              {users.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex items-center justify-between p-3 rounded-lg"
+                  style={{ backgroundColor: t.readLeftBg }}
+                >
+                  <div>
+                    <div
+                      className="text-sm font-medium"
+                      style={{ color: t.text }}
+                    >
+                      {u.name}
+                    </div>
+                    <div className="text-xs" style={{ color: t.textMuted }}>
+                      {u.email} • {u.role}
+                    </div>
+                  </div>
+                  <span
+                    className="text-[10px] px-2 py-1 rounded-full"
+                    style={{
+                      backgroundColor:
+                        u.status === "active" ? `${t.accent}22` : t.badgeBg,
+                      color: u.status === "active" ? t.accent : t.textMuted,
+                    }}
+                  >
+                    {u.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "mailboxes" && (
+          <div
+            className="rounded-xl p-5"
+            style={{
+              backgroundColor: t.card,
+              border: `1px solid ${t.cardBorder}`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold" style={{ color: t.text }}>
+                Mailboxes
+              </h3>
+              <button
+                onClick={() => setShowAddMailbox(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                style={{ background: t.accentGrad }}
+              >
+                <Plus className="w-3.5 h-3.5" /> Add mailbox
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {mailboxes.map((m) => (
+                <div
+                  key={m.id}
+                  className="p-4 rounded-lg"
+                  style={{
+                    backgroundColor: t.readLeftBg,
+                    border: `1px solid ${t.divider}`,
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: m.color }}
+                    />
+                    <span
+                      className="font-medium text-sm"
+                      style={{ color: t.text }}
+                    >
+                      {m.name}
+                    </span>
+                  </div>
+                  <div className="text-xs" style={{ color: t.textMuted }}>
+                    {m.email}
+                  </div>
+                  <div className="text-xs mt-2" style={{ color: t.textFaint }}>
+                    {m.userIds.length} users assigned
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "workflows" && (
+          <div
+            className="rounded-xl p-5"
+            style={{
+              backgroundColor: t.card,
+              border: `1px solid ${t.cardBorder}`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold" style={{ color: t.text }}>
+                Workflows
+              </h3>
+              <button
+                onClick={() => setShowAddWorkflow(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                style={{ background: t.accentGrad }}
+              >
+                <Plus className="w-3.5 h-3.5" /> Add workflow
+              </button>
+            </div>
+            <div className="space-y-2">
+              {workflows.map((w) => (
+                <div
+                  key={w.id}
+                  className="p-3 rounded-lg"
+                  style={{ backgroundColor: t.readLeftBg }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: t.text }}
+                    >
+                      {w.name}
+                    </span>
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full"
+                      style={{
+                        backgroundColor: w.active ? `${t.accent}22` : t.badgeBg,
+                        color: w.active ? t.accent : t.textMuted,
+                      }}
+                    >
+                      {w.active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: t.textMuted }}>
+                    If {w.conditions} then {w.actions}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "modules" && (
+          <div
+            className="rounded-xl p-5"
+            style={{
+              backgroundColor: t.card,
+              border: `1px solid ${t.cardBorder}`,
+            }}
+          >
+            <h3
+              className="text-sm font-semibold mb-4"
+              style={{ color: t.text }}
+            >
+              FreeScout MegaPlan modules ({MODULES.length})
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {MODULES.map((mod) => (
+                <button
+                  key={mod}
+                  onClick={() =>
+                    setEnabledModules((prev) => ({
+                      ...prev,
+                      [mod]: !prev[mod],
+                    }))
+                  }
+                  className="flex items-center justify-between p-3 rounded-lg text-left text-xs"
+                  style={{ backgroundColor: t.readLeftBg, color: t.textSub }}
+                >
+                  {mod}
+                  <span
+                    className="w-4 h-4 rounded flex items-center justify-center"
+                    style={{
+                      backgroundColor: enabledModules[mod]
+                        ? t.accent
+                        : "transparent",
+                      border: `1px solid ${
+                        enabledModules[mod] ? t.accent : t.inputBorder
+                      }`,
+                    }}
+                  >
+                    {enabledModules[mod] && (
+                      <Check className="w-3 h-3 text-white" />
+                    )}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showAddUser && (
+          <Modal
+            title="Add user"
+            t={t}
+            onClose={() => setShowAddUser(false)}
+            onSubmit={submitUser}
+          >
+            <input
+              value={userForm.name}
+              onChange={(e) =>
+                setUserForm({ ...userForm, name: e.target.value })
+              }
+              placeholder="Name"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <input
+              value={userForm.email}
+              onChange={(e) =>
+                setUserForm({ ...userForm, email: e.target.value })
+              }
+              placeholder="Email"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <select
+              value={userForm.role}
+              onChange={(e) =>
+                setUserForm({ ...userForm, role: e.target.value as any })
+              }
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            >
+              <option value="admin">Admin</option>
+              <option value="agent">Agent</option>
+              <option value="customer">Customer</option>
+            </select>
+          </Modal>
+        )}
+
+        {showAddMailbox && (
+          <Modal
+            title="Add mailbox"
+            t={t}
+            onClose={() => setShowAddMailbox(false)}
+            onSubmit={submitMailbox}
+          >
+            <input
+              value={mbForm.name}
+              onChange={(e) => setMbForm({ ...mbForm, name: e.target.value })}
+              placeholder="Mailbox name"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <input
+              value={mbForm.email}
+              onChange={(e) => setMbForm({ ...mbForm, email: e.target.value })}
+              placeholder="Email address"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <input
+              type="color"
+              value={mbForm.color}
+              onChange={(e) => setMbForm({ ...mbForm, color: e.target.value })}
+              className="w-full h-10 rounded-lg"
+            />
+          </Modal>
+        )}
+
+        {showAddWorkflow && (
+          <Modal
+            title="Add workflow"
+            t={t}
+            onClose={() => setShowAddWorkflow(false)}
+            onSubmit={submitWorkflow}
+          >
+            <input
+              value={wfForm.name}
+              onChange={(e) => setWfForm({ ...wfForm, name: e.target.value })}
+              placeholder="Workflow name"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <input
+              value={wfForm.conditions}
+              onChange={(e) =>
+                setWfForm({ ...wfForm, conditions: e.target.value })
+              }
+              placeholder="Condition (e.g. mailbox == sales)"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <input
+              value={wfForm.actions}
+              onChange={(e) =>
+                setWfForm({ ...wfForm, actions: e.target.value })
+              }
+              placeholder="Actions (e.g. assign u_sarah; tag partnership)"
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+          </Modal>
+        )}
+      </div>
+    </Layout>
+  )
+}
+
+function Modal({
+  title,
+  t,
+  onClose,
+  onSubmit,
+  children,
+}: {
+  title: string
+  t: any
+  onClose: () => void
+  onSubmit: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
+      <div
+        className="w-full max-w-md rounded-2xl p-6"
+        style={{ backgroundColor: t.readLeftBg, boxShadow: t.shadow }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold" style={{ color: t.text }}>
+            {title}
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1"
+            style={{ color: t.textSub }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        {children}
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm"
+            style={{ color: t.textSub }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSubmit}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+            style={{ background: t.accentGrad }}
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
