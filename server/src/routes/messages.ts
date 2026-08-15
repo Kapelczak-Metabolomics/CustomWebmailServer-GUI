@@ -49,6 +49,7 @@ router.post("/", async (req: AuthRequest, res) => {
   // Send email for outbound replies
   if (type === "reply" && conv.contact && conv.mailbox) {
     await sendMail({
+      mailbox: conv.mailbox,
       from: conv.mailbox.email,
       to: [conv.contact.email],
       cc: cc as string[] | undefined,

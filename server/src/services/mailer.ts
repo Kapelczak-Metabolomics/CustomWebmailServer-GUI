@@ -1,8 +1,19 @@
 import nodemailer from "nodemailer";
 import { config } from "../lib/config.js";
 
+export interface SmtpMailbox {
+  email: string;
+  name?: string | null;
+  smtpHost?: string | null;
+  smtpPort?: number;
+  smtpSecure?: boolean;
+  smtpUser?: string | null;
+  smtpPassword?: string | null;
+}
+
 export interface SendMailOptions {
-  from: string;
+  mailbox?: SmtpMailbox;
+  from?: string;
   to: string[];
   cc?: string[];
   bcc?: string[];
@@ -12,6 +23,7 @@ export interface SendMailOptions {
 }
 
 export async function sendMail({
+  mailbox,
   from,
   to,
   cc,
@@ -20,25 +32,33 @@ export async function sendMail({
   html,
   text,
 }: SendMailOptions) {
-  if (!config.email.defaultFrom) {
-    throw new Error("EMAIL_DEFAULT_FROM is not set");
-  }
-  if (!process.env.SMTP_HOST) {
-    console.log("[SMTP] skipping send, SMTP_HOST not configured");
+  const smtpHost = mailbox?.smtpHost || process.env.SMTP_HOST;
+  if (!smtpHost) {
+    console.log("[SMTP] skipping send, no SMTP host configured");
     return;
   }
-  // Basic stub: replace with mailbox SMTP lookup in production
+
+  const smtpPort =
+    mailbox?.smtpPort ?? parseInt(process.env.SMTP_PORT ?? "587");
+  const smtpSecure = mailbox?.smtpSecure ?? process.env.SMTP_SECURE === "true";
+  const smtpUser = mailbox?.smtpUser || process.env.SMTP_USER;
+  const smtpPass = mailbox?.smtpPassword || process.env.SMTP_PASS;
+  const sender = from || config.email.defaultFrom || mailbox?.email;
+  if (!sender) {
+    throw new Error("No sender address available");
+  }
+
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "localhost",
-    port: parseInt(process.env.SMTP_PORT || "587"),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
+    auth: smtpUser ? { user: smtpUser, pass: smtpPass || "" } : undefined,
   });
+
+  const fromHeader = mailbox?.name ? `"${mailbox.name}" <${sender}>` : sender;
+
   await transporter.sendMail({
-    from: `"${from}" <${config.email.defaultFrom}>`,
+    from: fromHeader,
     to: to.join(", "),
     cc: cc?.join(", "),
     bcc: bcc?.join(", "),
