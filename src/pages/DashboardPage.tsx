@@ -1,8 +1,8 @@
-import { useMemo } from "react"
-import Layout from "../components/Layout"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
-import { formatRelative, getInitials } from "../lib/utils"
+import { useMemo } from "react";
+import Layout from "../components/Layout";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import { formatRelative, getInitials } from "../lib/utils";
 import {
   Inbox,
   Clock,
@@ -11,14 +11,14 @@ import {
   Users,
   Mail,
   MessageSquare,
-} from "lucide-react"
+} from "lucide-react";
 
 export default function DashboardPage() {
-  const { tokens: t } = useTheme()
-  const conversations = useStore((s) => s.conversations)
-  const contacts = useStore((s) => s.contacts)
-  const users = useStore((s) => s.users)
-  const messages = useStore((s) => s.messages)
+  const { tokens: t } = useTheme();
+  const conversations = useStore((s) => s.conversations);
+  const contacts = useStore((s) => s.contacts);
+  const users = useStore((s) => s.users);
+  const messages = useStore((s) => s.messages);
 
   const stats = useMemo(
     () => ({
@@ -34,7 +34,7 @@ export default function DashboardPage() {
       messages: messages.length,
     }),
     [conversations, contacts, users, messages],
-  )
+  );
 
   const recent = useMemo(
     () =>
@@ -42,7 +42,7 @@ export default function DashboardPage() {
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, 6),
     [conversations],
-  )
+  );
 
   const Card = ({
     label,
@@ -50,10 +50,10 @@ export default function DashboardPage() {
     icon: Icon,
     accent,
   }: {
-    label: string
-    value: number | string
-    icon: any
-    accent?: string
+    label: string;
+    value: number | string;
+    icon: any;
+    accent?: string;
   }) => (
     <div
       className="rounded-xl p-4"
@@ -77,7 +77,7 @@ export default function DashboardPage() {
         {value}
       </div>
     </div>
-  )
+  );
 
   return (
     <Layout>
@@ -114,7 +114,7 @@ export default function DashboardPage() {
             </h3>
             <div className="space-y-2">
               {recent.map((c) => {
-                const contact = contacts.find((x) => x.id === c.customerId)
+                const contact = contacts.find((x) => x.id === c.customerId);
                 return (
                   <div
                     key={c.id}
@@ -159,7 +159,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
           </div>
@@ -210,5 +210,5 @@ export default function DashboardPage() {
         </div>
       </div>
     </Layout>
-  )
+  );
 }

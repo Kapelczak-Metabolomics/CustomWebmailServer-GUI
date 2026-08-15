@@ -1,7 +1,7 @@
 interface LabelBadgeProps {
-  label: string
-  color?: string
-  onRemove?: () => void
+  label: string;
+  color?: string;
+  onRemove?: () => void;
 }
 
 const palette: Record<string, string> = {
@@ -14,14 +14,14 @@ const palette: Record<string, string> = {
   High: "#F59E0B",
   Medium: "#8B5CF6",
   Low: "#6B7A96",
-}
+};
 
 export default function LabelBadge({
   label,
   color,
   onRemove,
 }: LabelBadgeProps) {
-  const c = color || palette[label] || "#6B7A96"
+  const c = color || palette[label] || "#6B7A96";
   return (
     <span
       className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap"
@@ -42,5 +42,5 @@ export default function LabelBadge({
         </button>
       )}
     </span>
-  )
+  );
 }

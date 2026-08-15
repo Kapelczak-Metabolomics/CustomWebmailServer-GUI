@@ -1,10 +1,10 @@
-import Layout from "../components/Layout"
-import ConversationList from "../components/ConversationList"
-import ReadingPane from "../components/ReadingPane"
-import { useStore } from "../store"
+import Layout from "../components/Layout";
+import ConversationList from "../components/ConversationList";
+import ReadingPane from "../components/ReadingPane";
+import { useStore } from "../store";
 
 export default function InboxPage() {
-  const selectedId = useStore((s) => s.ui.selectedId)
+  const selectedId = useStore((s) => s.ui.selectedId);
 
   return (
     <Layout>
@@ -25,5 +25,5 @@ export default function InboxPage() {
         </div>
       </div>
     </Layout>
-  )
+  );
 }

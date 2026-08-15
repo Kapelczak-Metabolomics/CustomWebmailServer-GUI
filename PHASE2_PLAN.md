@@ -221,28 +221,28 @@ If mesh becomes a bottleneck, replace with a `mediasoup` or `livekit` service in
 
 After the backend is in place, wire the frontend to real data/actions for every Phase 1 shell:
 
-| Feature | Backend work | Frontend work |
-|---------|--------------|---------------|
-| Conversations / tickets | CRUD, filters, counters | Update Zustand to call API |
-| Assign / status / priority / labels / tags | Update endpoints | Reading pane controls |
-| Reply / note / forward / internal | Send mail, persist | Composer modes |
-| Star / archive / spam / delete | Folder/status updates | Sidebar folder counts |
-| Saved replies | CRUD | Insert into composer |
-| Snooze | `snoozeUntil` field + filters | Snooze picker |
-| Followers | many-to-many relation | Follow/unfollow button |
-| Mentions | parse `@user` in notes | mention autocomplete |
-| Checklists | checklist table per conversation | checklist UI in reading pane |
-| Custom fields | `CustomField` + values | forms/renderers |
-| Time tracking | time entries per message/reply | timer UI + reports |
-| Workflows | rule engine on new messages | builder UI |
-| Reports | aggregation queries | charts |
-| Knowledge base | article CRUD | editor + viewer |
-| End-user portal | public ticket submission, auth by email link | existing portal, connect APIs |
-| Auto-reply / office hours / out-of-office | settings + mail worker | settings forms |
-| Spam filter | simple rules + spam folder | spam actions |
-| White-label | brand settings | apply brand tokens |
-| Wallboards | real-time metrics endpoint | full-screen dashboard |
-| Ticket number | sequential number per mailbox | display `#` prefix |
+| Feature                                    | Backend work                                 | Frontend work                 |
+| ------------------------------------------ | -------------------------------------------- | ----------------------------- |
+| Conversations / tickets                    | CRUD, filters, counters                      | Update Zustand to call API    |
+| Assign / status / priority / labels / tags | Update endpoints                             | Reading pane controls         |
+| Reply / note / forward / internal          | Send mail, persist                           | Composer modes                |
+| Star / archive / spam / delete             | Folder/status updates                        | Sidebar folder counts         |
+| Saved replies                              | CRUD                                         | Insert into composer          |
+| Snooze                                     | `snoozeUntil` field + filters                | Snooze picker                 |
+| Followers                                  | many-to-many relation                        | Follow/unfollow button        |
+| Mentions                                   | parse `@user` in notes                       | mention autocomplete          |
+| Checklists                                 | checklist table per conversation             | checklist UI in reading pane  |
+| Custom fields                              | `CustomField` + values                       | forms/renderers               |
+| Time tracking                              | time entries per message/reply               | timer UI + reports            |
+| Workflows                                  | rule engine on new messages                  | builder UI                    |
+| Reports                                    | aggregation queries                          | charts                        |
+| Knowledge base                             | article CRUD                                 | editor + viewer               |
+| End-user portal                            | public ticket submission, auth by email link | existing portal, connect APIs |
+| Auto-reply / office hours / out-of-office  | settings + mail worker                       | settings forms                |
+| Spam filter                                | simple rules + spam folder                   | spam actions                  |
+| White-label                                | brand settings                               | apply brand tokens            |
+| Wallboards                                 | real-time metrics endpoint                   | full-screen dashboard         |
+| Ticket number                              | sequential number per mailbox                | display `#` prefix            |
 
 ---
 
@@ -312,32 +312,39 @@ TURN_SECRET=...
 ## 11. Implementation Phases & Sessions
 
 ### Phase 2A — Backend foundation
+
 - Scaffold `server/`, Prisma schema, migrations, auth, basic API.
 - Docker Compose with postgres + redis.
 - Update `docker-compose.yml` and add `Dockerfile.server`.
 
 ### Phase 2B — IMAP/SMTP email
+
 - IMAP fetch worker, SMTP send, conversation/message creation.
 - Mailbox settings UI.
 - Compose/reply wired to backend.
 
 ### Phase 2C — Internal staff live chat
+
 - Socket.IO chat backend + DB models.
 - Team Chat UI in frontend.
 
 ### Phase 2D — S3 attachments + Brand customization
+
 - Presigned S3 uploads, attachment UI.
 - Brand settings backend/admin UI.
 
 ### Phase 2E — Video conferencing
+
 - Add `coturn` service, TURN credentials endpoint.
 - Socket.IO signaling, `/video/:roomId` page.
 
 ### Phase 2F — Feature parity sweep
+
 - Wire remaining modules (snooze, follow, mentions, checklists, custom fields, workflows, etc.) to real backend.
 - Reports, wallboards, KB editor, portal ticket view.
 
 ### Phase 2G — Testing & polish
+
 - Unit tests (server: `vitest` or `jest`).
 - E2E smoke tests with Playwright.
 - Easypanel deploy test.

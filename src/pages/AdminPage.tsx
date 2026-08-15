@@ -1,8 +1,8 @@
-import { useState } from "react"
-import Layout from "../components/Layout"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
-import { Users, Mail, Workflow, Plus, X, Check, Package } from "lucide-react"
+import { useState } from "react";
+import Layout from "../components/Layout";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import { Users, Mail, Workflow, Plus, X, Check, Package } from "lucide-react";
 
 const MODULES = [
   "API & Webhooks",
@@ -76,65 +76,70 @@ const MODULES = [
   "White Label",
   "WooCommerce",
   "Workflows",
-]
+];
 
 export default function AdminPage() {
-  const { tokens: t } = useTheme()
-  const users = useStore((s) => s.users)
-  const mailboxes = useStore((s) => s.mailboxes)
-  const workflows = useStore((s) => s.workflows)
-  const addUser = useStore((s) => s.addUser)
-  const addMailbox = useStore((s) => s.addMailbox)
-  const addWorkflow = useStore((s) => s.addWorkflow)
+  const { tokens: t } = useTheme();
+  const users = useStore((s) => s.users);
+  const mailboxes = useStore((s) => s.mailboxes);
+  const workflows = useStore((s) => s.workflows);
+  const addUser = useStore((s) => s.addUser);
+  const addMailbox = useStore((s) => s.addMailbox);
+  const addWorkflow = useStore((s) => s.addWorkflow);
 
-  const [activeTab, setActiveTab] =
-    useState<"users" | "mailboxes" | "workflows" | "modules">("users")
-  const [showAddUser, setShowAddUser] = useState(false)
-  const [showAddMailbox, setShowAddMailbox] = useState(false)
-  const [showAddWorkflow, setShowAddWorkflow] = useState(false)
+  const [activeTab, setActiveTab] = useState<
+    "users" | "mailboxes" | "workflows" | "modules"
+  >("users");
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [showAddMailbox, setShowAddMailbox] = useState(false);
+  const [showAddWorkflow, setShowAddWorkflow] = useState(false);
   const [enabledModules, setEnabledModules] = useState<Record<string, boolean>>(
     {},
-  )
+  );
 
   const [userForm, setUserForm] = useState({
     name: "",
     email: "",
     role: "agent" as any,
-  })
+  });
   const [mbForm, setMbForm] = useState({
     name: "",
     email: "",
     color: "#2896E8",
-  })
+  });
   const [wfForm, setWfForm] = useState({
     name: "",
     conditions: "",
     actions: "",
-  })
+  });
 
   function submitUser() {
-    if (!userForm.name || !userForm.email) return
-    addUser({ name: userForm.name, email: userForm.email, role: userForm.role })
-    setUserForm({ name: "", email: "", role: "agent" })
-    setShowAddUser(false)
+    if (!userForm.name || !userForm.email) return;
+    addUser({
+      name: userForm.name,
+      email: userForm.email,
+      role: userForm.role,
+    });
+    setUserForm({ name: "", email: "", role: "agent" });
+    setShowAddUser(false);
   }
 
   function submitMailbox() {
-    if (!mbForm.name || !mbForm.email) return
-    addMailbox({ name: mbForm.name, email: mbForm.email, color: mbForm.color })
-    setMbForm({ name: "", email: "", color: "#2896E8" })
-    setShowAddMailbox(false)
+    if (!mbForm.name || !mbForm.email) return;
+    addMailbox({ name: mbForm.name, email: mbForm.email, color: mbForm.color });
+    setMbForm({ name: "", email: "", color: "#2896E8" });
+    setShowAddMailbox(false);
   }
 
   function submitWorkflow() {
-    if (!wfForm.name || !wfForm.conditions || !wfForm.actions) return
+    if (!wfForm.name || !wfForm.conditions || !wfForm.actions) return;
     addWorkflow({
       name: wfForm.name,
       conditions: wfForm.conditions,
       actions: wfForm.actions,
-    })
-    setWfForm({ name: "", conditions: "", actions: "" })
-    setShowAddWorkflow(false)
+    });
+    setWfForm({ name: "", conditions: "", actions: "" });
+    setShowAddWorkflow(false);
   }
 
   const TabButton = ({
@@ -142,9 +147,9 @@ export default function AdminPage() {
     label,
     icon: Icon,
   }: {
-    id: typeof activeTab
-    label: string
-    icon: any
+    id: typeof activeTab;
+    label: string;
+    icon: any;
   }) => (
     <button
       onClick={() => setActiveTab(id)}
@@ -156,7 +161,7 @@ export default function AdminPage() {
     >
       <Icon className="w-4 h-4" /> {label}
     </button>
-  )
+  );
 
   return (
     <Layout>
@@ -520,7 +525,7 @@ export default function AdminPage() {
         )}
       </div>
     </Layout>
-  )
+  );
 }
 
 function Modal({
@@ -530,11 +535,11 @@ function Modal({
   onSubmit,
   children,
 }: {
-  title: string
-  t: any
-  onClose: () => void
-  onSubmit: () => void
-  children: React.ReactNode
+  title: string;
+  t: any;
+  onClose: () => void;
+  onSubmit: () => void;
+  children: React.ReactNode;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
@@ -573,5 +578,5 @@ function Modal({
         </div>
       </div>
     </div>
-  )
+  );
 }

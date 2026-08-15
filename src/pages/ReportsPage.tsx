@@ -1,40 +1,40 @@
-import { useMemo } from "react"
-import Layout from "../components/Layout"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
+import { useMemo } from "react";
+import Layout from "../components/Layout";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
 
 export default function ReportsPage() {
-  const { tokens: t } = useTheme()
-  const conversations = useStore((s) => s.conversations)
-  const messages = useStore((s) => s.messages)
+  const { tokens: t } = useTheme();
+  const conversations = useStore((s) => s.conversations);
+  const messages = useStore((s) => s.messages);
 
   const byStatus = useMemo(() => {
-    const s: Record<string, number> = {}
+    const s: Record<string, number> = {};
     conversations.forEach((c) => {
-      s[c.status] = (s[c.status] || 0) + 1
-    })
-    return s
-  }, [conversations])
+      s[c.status] = (s[c.status] || 0) + 1;
+    });
+    return s;
+  }, [conversations]);
 
   const byPriority = useMemo(() => {
-    const s: Record<string, number> = {}
+    const s: Record<string, number> = {};
     conversations.forEach((c) => {
-      s[c.priority] = (s[c.priority] || 0) + 1
-    })
-    return s
-  }, [conversations])
+      s[c.priority] = (s[c.priority] || 0) + 1;
+    });
+    return s;
+  }, [conversations]);
 
   const byMailbox = useMemo(() => {
-    const s: Record<string, number> = {}
-    const mailboxes = useStore.getState().mailboxes
+    const s: Record<string, number> = {};
+    const mailboxes = useStore.getState().mailboxes;
     conversations.forEach((c) => {
-      const m = mailboxes.find((x) => x.id === c.mailboxId)?.name || "Unknown"
-      s[m] = (s[m] || 0) + 1
-    })
-    return s
-  }, [conversations])
+      const m = mailboxes.find((x) => x.id === c.mailboxId)?.name || "Unknown";
+      s[m] = (s[m] || 0) + 1;
+    });
+    return s;
+  }, [conversations]);
 
-  const max = Math.max(...Object.values(byStatus), 1)
+  const max = Math.max(...Object.values(byStatus), 1);
 
   function BarChart(
     title: string,
@@ -51,7 +51,7 @@ export default function ReportsPage() {
         </h3>
         <div className="space-y-3">
           {Object.entries(data).map(([label, value]) => {
-            const pct = max ? (value / max) * 100 : 0
+            const pct = max ? (value / max) * 100 : 0;
             return (
               <div key={label} className="flex items-center gap-3 text-sm">
                 <span className="w-20 text-xs" style={{ color: t.textMuted }}>
@@ -76,11 +76,11 @@ export default function ReportsPage() {
                   {value}
                 </span>
               </div>
-            )
+            );
           })}
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -142,5 +142,5 @@ export default function ReportsPage() {
         </div>
       </div>
     </Layout>
-  )
+  );
 }

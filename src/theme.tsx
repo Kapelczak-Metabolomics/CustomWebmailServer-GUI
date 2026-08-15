@@ -3,9 +3,11 @@ import {
   useContext,
   useState,
   useEffect,
+  useMemo,
   type ReactNode,
-} from "react"
-import type { Theme } from "./types"
+} from "react";
+import type { Theme } from "./types";
+import { api, type ApiBrand } from "./lib/api";
 
 export const DARK = {
   appBg: "#070B14",
@@ -54,7 +56,7 @@ export const DARK = {
   composeComposeBorder: "#2D3A5C",
   scrollThumb: "#1C2540",
   shadow: "0 20px 60px rgba(0,0,0,0.6)",
-}
+};
 
 export const LIGHT = {
   appBg: "#F0F4FA",
@@ -103,50 +105,118 @@ export const LIGHT = {
   attachColor: "#8894B0",
   scrollThumb: "#CBD5E8",
   shadow: "0 20px 60px rgba(0,0,0,0.12)",
+};
+
+export type Tokens = typeof DARK;
+
+export const THEMES: Record<Theme, Tokens> = { dark: DARK, light: LIGHT };
+
+function hexToRgba(hex: string, alpha: string | number) {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export type Tokens = typeof DARK
-
-export const THEMES: Record<Theme, Tokens> = { dark: DARK, light: LIGHT }
+function applyBrand(base: Tokens, primaryColor?: string | null): Tokens {
+  if (!primaryColor || primaryColor === "#2896E8") return base;
+  const dark = primaryColor
+    .replace("#", "")
+    .match(/../g)
+    ?.map((c) => Math.max(0, parseInt(c, 16) - 40))
+    .map((c) => c.toString(16).padStart(2, "0"))
+    .join("");
+  const darkHex = dark ? `#${dark}` : "#1565C0";
+  return {
+    ...base,
+    unreadDot: primaryColor,
+    accent: primaryColor,
+    accentGrad: `linear-gradient(135deg, ${primaryColor} 0%, ${darkHex} 100%)`,
+    accentGlow: `0 4px 16px ${hexToRgba(primaryColor, 0.35)}`,
+    replyBorder: `${hexToRgba(primaryColor, 0.25)}`,
+    rowSelected: `${hexToRgba(primaryColor, 0.06)}`,
+    navActive: `${hexToRgba(primaryColor, 0.13)}`,
+  };
+}
 
 export const ThemeContext = createContext<{
-  theme: Theme
-  tokens: Tokens
-  toggle: () => void
-  setTheme: (theme: Theme) => void
-}>({ theme: "dark", tokens: DARK, toggle: () => {}, setTheme: () => {} })
+  theme: Theme;
+  tokens: Tokens;
+  brand: ApiBrand | null;
+  appName: string;
+  toggle: () => void;
+  setTheme: (theme: Theme) => void;
+  refreshBrand: () => Promise<void>;
+}>({
+  theme: "dark",
+  tokens: DARK,
+  brand: null,
+  appName: "Isotopiq Mail",
+  toggle: () => {},
+  setTheme: () => {},
+  refreshBrand: async () => {},
+});
 
-export const useTheme = () => useContext(ThemeContext)
+export const useTheme = () => useContext(ThemeContext);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark")
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [brand, setBrand] = useState<ApiBrand | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("isotopiq-theme") as Theme | null
+    const saved = localStorage.getItem("isotopiq-theme") as Theme | null;
     if (saved === "dark" || saved === "light") {
-      setTheme(saved)
+      setTheme(saved);
     } else if (
       window.matchMedia &&
       window.matchMedia("(prefers-color-scheme: light)").matches
     ) {
-      setTheme("light")
+      setTheme("light");
     }
-  }, [])
+    api
+      .getBrand()
+      .then((b) => setBrand(b))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem("isotopiq-theme", theme)
-  }, [theme])
+    localStorage.setItem("isotopiq-theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (brand?.companyName) {
+      document.title = brand.companyName;
+    }
+  }, [brand]);
+
+  const tokens = useMemo(
+    () => applyBrand(THEMES[theme], brand?.primaryColor),
+    [theme, brand],
+  );
+
+  async function refreshBrand() {
+    try {
+      const b = await api.getBrand();
+      setBrand(b);
+    } catch {
+      /* ignore */
+    }
+  }
 
   return (
     <ThemeContext.Provider
       value={{
         theme,
-        tokens: THEMES[theme],
+        tokens,
+        brand,
+        appName: brand?.companyName || "Isotopiq Mail",
         toggle: () => setTheme((th) => (th === "dark" ? "light" : "dark")),
         setTheme,
+        refreshBrand,
       }}
     >
       {children}
     </ThemeContext.Provider>
-  )
+  );
 }

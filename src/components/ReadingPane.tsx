@@ -1,17 +1,18 @@
-import { useState, useMemo, useEffect } from "react"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
+import { useState, useMemo, useEffect } from "react";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
 import {
   formatDate,
   formatTime,
   formatBytes,
   getInitials,
   stripHtml,
-} from "../lib/utils"
-import EmptyState from "./EmptyState"
-import Avatar from "./Avatar"
-import LabelBadge from "./LabelBadge"
-import { Icon } from "./Icon"
+} from "../lib/utils";
+import { api } from "../lib/api";
+import EmptyState from "./EmptyState";
+import Avatar from "./Avatar";
+import LabelBadge from "./LabelBadge";
+import { Icon } from "./Icon";
 import {
   Inbox,
   MessageSquareWarning,
@@ -30,62 +31,71 @@ import {
   ChevronLeft,
   Reply,
   MoreHorizontal,
-} from "lucide-react"
+} from "lucide-react";
 
 function toHtml(text: string) {
   return text
     .split(/\n+/)
     .filter(Boolean)
     .map((p) => `<p>${p.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)
-    .join("")
+    .join("");
 }
 
 export default function ReadingPane() {
-  const { tokens: t } = useTheme()
-  const selectedId = useStore((s) => s.ui.selectedId)
-  const currentUser = useStore((s) => s.currentUser)
-  const conversations = useStore((s) => s.conversations)
-  const messages = useStore((s) => s.messages)
-  const contacts = useStore((s) => s.contacts)
-  const users = useStore((s) => s.users)
-  const tags = useStore((s) => s.tags)
-  const savedReplies = useStore((s) => s.savedReplies)
-  const mailboxes = useStore((s) => s.mailboxes)
+  const { tokens: t } = useTheme();
+  const selectedId = useStore((s) => s.ui.selectedId);
+  const currentUser = useStore((s) => s.currentUser);
+  const conversations = useStore((s) => s.conversations);
+  const messages = useStore((s) => s.messages);
+  const contacts = useStore((s) => s.contacts);
+  const users = useStore((s) => s.users);
+  const tags = useStore((s) => s.tags);
+  const savedReplies = useStore((s) => s.savedReplies);
+  const mailboxes = useStore((s) => s.mailboxes);
 
-  const setStatus = useStore((s) => s.setStatus)
-  const setPriority = useStore((s) => s.setPriority)
-  const assign = useStore((s) => s.assign)
-  const changeFolder = useStore((s) => s.changeFolder)
-  const addTagToConversation = useStore((s) => s.addTagToConversation)
-  const removeTagFromConversation = useStore((s) => s.removeTagFromConversation)
-  const sendReply = useStore((s) => s.sendReply)
-  const sendMessage = useStore((s) => s.sendMessage)
-  const selectConversation = useStore((s) => s.selectConversation)
-  const toggleStar = useStore((s) => s.toggleStar)
+  const setStatus = useStore((s) => s.setStatus);
+  const setPriority = useStore((s) => s.setPriority);
+  const assign = useStore((s) => s.assign);
+  const changeFolder = useStore((s) => s.changeFolder);
+  const addTagToConversation = useStore((s) => s.addTagToConversation);
+  const removeTagFromConversation = useStore(
+    (s) => s.removeTagFromConversation,
+  );
+  const sendReply = useStore((s) => s.sendReply);
+  const sendMessage = useStore((s) => s.sendMessage);
+  const selectConversation = useStore((s) => s.selectConversation);
+  const toggleStar = useStore((s) => s.toggleStar);
 
-  const [replyText, setReplyText] = useState("")
-  const [replyMode, setReplyMode] = useState<"reply" | "note">("reply")
+  const [replyText, setReplyText] = useState("");
+  const [replyMode, setReplyMode] = useState<"reply" | "note">("reply");
+  const [pendingAttachments, setPendingAttachments] = useState<
+    {
+      name: string;
+      url: string;
+    }[]
+  >([]);
 
   useEffect(() => {
-    setReplyText("")
-    setReplyMode("reply")
-  }, [selectedId])
-  const [showTagMenu, setShowTagMenu] = useState(false)
-  const [showSaved, setShowSaved] = useState(false)
-  const [showMore, setShowMore] = useState(false)
-  const [newTagInput, setNewTagInput] = useState("")
+    setReplyText("");
+    setReplyMode("reply");
+    setPendingAttachments([]);
+  }, [selectedId]);
+  const [showTagMenu, setShowTagMenu] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [newTagInput, setNewTagInput] = useState("");
 
   const conversation = useMemo(
     () => conversations.find((c) => c.id === selectedId),
     [conversations, selectedId],
-  )
+  );
   const convMessages = useMemo(
     () =>
       messages
         .filter((m) => m.conversationId === selectedId)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [messages, selectedId],
-  )
+  );
 
   if (!conversation)
     return (
@@ -94,53 +104,82 @@ export default function ReadingPane() {
         title="No conversation selected"
         message="Select a conversation from the list to view messages and reply."
       />
-    )
+    );
 
-  const conv = conversation
+  const conv = conversation;
 
-  const customer = contacts.find((c) => c.id === conv.customerId)
-  const customerName = customer?.name || conv.customerId
-  const mailbox = mailboxes.find((m) => m.id === conv.mailboxId)
+  const customer = contacts.find((c) => c.id === conv.customerId);
+  const customerName = customer?.name || conv.customerId;
+  const mailbox = mailboxes.find((m) => m.id === conv.mailboxId);
   const assignee = conv.assigneeId
     ? users.find((u) => u.id === conv.assigneeId)
-    : null
-  const tagMap = Object.fromEntries(tags.map((tag) => [tag.name, tag]))
+    : null;
+  const tagMap = Object.fromEntries(tags.map((tag) => [tag.name, tag]));
+
+  function attachmentHtml() {
+    if (!pendingAttachments.length) return "";
+    return pendingAttachments
+      .map(
+        (a) =>
+          `<p><a href="${a.url}" target="_blank" rel="noopener noreferrer">${a.name}</a></p>`,
+      )
+      .join("");
+  }
+
+  async function handleAttach(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const { uploadUrl, url } = await api.getUploadUrl(
+        file.name,
+        file.type || "application/octet-stream",
+      );
+      await fetch(uploadUrl, { method: "PUT", body: file });
+      setPendingAttachments((prev) => [...prev, { name: file.name, url }]);
+    } catch (err) {
+      console.error("Upload failed", err);
+      alert("Failed to upload attachment");
+    }
+  }
 
   function handleSend() {
-    if (!replyText.trim() || !currentUser) return
-    if (replyMode === "reply") sendReply(conv.id, toHtml(replyText.trim()))
+    if (!replyText.trim() && !pendingAttachments.length) return;
+    const attachments = attachmentHtml();
+    if (replyMode === "reply")
+      sendReply(conv.id, toHtml(replyText.trim()) + attachments);
     else
       sendMessage(conv.id, {
         type: "note",
-        body: `<p>${replyText.trim()}</p>`,
+        body: `<p>${replyText.trim()}</p>` + attachments,
         authorType: "agent",
-      })
-    setReplyText("")
+      });
+    setReplyText("");
+    setPendingAttachments([]);
   }
 
   function handleTagSelect(name: string) {
     const existing = tags.find(
       (t) => t.name.toLowerCase() === name.toLowerCase(),
-    )
-    if (existing) addTagToConversation(conv.id, existing.id)
+    );
+    if (existing) addTagToConversation(conv.id, existing.id);
     else {
       // create tag via store not directly available for new tag then add
-      useStore.getState().createTag(name, "#6B7A96")
+      useStore.getState().createTag(name, "#6B7A96");
       const created = useStore
         .getState()
-        .tags.find((t) => t.name.toLowerCase() === name.toLowerCase())
-      if (created) addTagToConversation(conv.id, created.id)
+        .tags.find((t) => t.name.toLowerCase() === name.toLowerCase());
+      if (created) addTagToConversation(conv.id, created.id);
     }
-    setShowTagMenu(false)
-    setNewTagInput("")
+    setShowTagMenu(false);
+    setNewTagInput("");
   }
 
-  const MessageBubble = ({ msg }: { msg: typeof messages[0] }) => {
+  const MessageBubble = ({ msg }: { msg: (typeof messages)[0] }) => {
     const author =
       users.find((u) => u.id === msg.authorId) ||
-      contacts.find((c) => c.id === msg.authorId)
-    const isMe = msg.authorId === currentUser?.id
-    const isNote = msg.type === "note"
+      contacts.find((c) => c.id === msg.authorId);
+    const isMe = msg.authorId === currentUser?.id;
+    const isNote = msg.type === "note";
     return (
       <div className={`flex gap-3 mb-6 ${isMe ? "flex-row-reverse" : ""}`}>
         <div className="flex-shrink-0">
@@ -206,8 +245,8 @@ export default function ReadingPane() {
           )}
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <div
@@ -284,8 +323,8 @@ export default function ReadingPane() {
             >
               <button
                 onClick={() => {
-                  changeFolder(conv.id, "archive")
-                  setShowMore(false)
+                  changeFolder(conv.id, "archive");
+                  setShowMore(false);
                 }}
                 className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
                 style={{ color: t.textSub }}
@@ -297,8 +336,8 @@ export default function ReadingPane() {
                   setStatus(
                     conv.id,
                     conv.status === "closed" ? "open" : "closed",
-                  )
-                  setShowMore(false)
+                  );
+                  setShowMore(false);
                 }}
                 className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
                 style={{ color: t.textSub }}
@@ -312,9 +351,9 @@ export default function ReadingPane() {
               </button>
               <button
                 onClick={() => {
-                  setStatus(conv.id, "spam")
-                  changeFolder(conv.id, "spam")
-                  setShowMore(false)
+                  setStatus(conv.id, "spam");
+                  changeFolder(conv.id, "spam");
+                  setShowMore(false);
                 }}
                 className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
                 style={{ color: t.textSub }}
@@ -323,8 +362,8 @@ export default function ReadingPane() {
               </button>
               <button
                 onClick={() => {
-                  changeFolder(conv.id, "trash")
-                  setShowMore(false)
+                  changeFolder(conv.id, "trash");
+                  setShowMore(false);
                 }}
                 className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
                 style={{ color: "#EF4444" }}
@@ -533,8 +572,8 @@ export default function ReadingPane() {
                   <button
                     key={sr.id}
                     onClick={() => {
-                      setReplyText(stripHtml(sr.body))
-                      setShowSaved(false)
+                      setReplyText(stripHtml(sr.body));
+                      setShowSaved(false);
                     }}
                     className="w-full text-left px-3 py-2 text-xs border-b"
                     style={{ color: t.textSub, borderColor: t.divider }}
@@ -553,7 +592,7 @@ export default function ReadingPane() {
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSend()
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSend();
             }}
             placeholder={
               replyMode === "reply"
@@ -567,17 +606,34 @@ export default function ReadingPane() {
               color: t.text,
             }}
           />
+          {pendingAttachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {pendingAttachments.map((a, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs"
+                  style={{ backgroundColor: t.inputBg, color: t.textSub }}
+                >
+                  <Paperclip className="w-3 h-3" />
+                  {a.name}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex items-center justify-between mt-2">
             <div
               className="flex items-center gap-2 text-xs"
               style={{ color: t.textMuted }}
             >
-              <Paperclip className="w-4 h-4 cursor-pointer" />
+              <label className="cursor-pointer">
+                <Paperclip className="w-4 h-4" />
+                <input type="file" className="hidden" onChange={handleAttach} />
+              </label>
               <span>Ctrl + Enter to send</span>
             </div>
             <button
               onClick={handleSend}
-              disabled={!replyText.trim()}
+              disabled={!replyText.trim() && !pendingAttachments.length}
               className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: t.accentGrad }}
             >
@@ -587,5 +643,5 @@ export default function ReadingPane() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { NavLink, useNavigate } from "react-router-dom"
+import { useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Inbox,
@@ -16,22 +16,26 @@ import {
   LogOut,
   X,
   ChevronDown,
-} from "lucide-react"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
-import Avatar from "./Avatar"
-import { Icon } from "./Icon"
+  MessageSquare,
+  Video,
+} from "lucide-react";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import Avatar from "./Avatar";
+import { Icon } from "./Icon";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/inbox", icon: Inbox, label: "Inbox" },
   { to: "/contacts", icon: Users, label: "Contacts" },
+  { to: "/chat", icon: MessageSquare, label: "Team Chat" },
+  { to: "/video", icon: Video, label: "Video" },
   { to: "/reports", icon: BarChart3, label: "Reports" },
   { to: "/knowledge-base", icon: BookOpen, label: "Knowledge Base" },
   { to: "/portal", icon: Globe, label: "End-User Portal" },
   { to: "/settings", icon: Settings, label: "Settings" },
   { to: "/admin", icon: Shield, label: "Admin" },
-]
+];
 
 const FOLDERS = [
   { key: "inbox", label: "Inbox", Icon: Icon.Inbox },
@@ -41,42 +45,43 @@ const FOLDERS = [
   { key: "archive", label: "Archive", Icon: Icon.Archive },
   { key: "spam", label: "Spam", Icon: Icon.Spam },
   { key: "trash", label: "Trash", Icon: Icon.Trash },
-]
+];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { theme, tokens: t, toggle } = useTheme()
-  const navigate = useNavigate()
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [notifOpen, setNotifOpen] = useState(false)
-  const [query, setQuery] = useState("")
-  const currentUser = useStore((s) => s.currentUser)
-  const logout = useStore((s) => s.logout)
-  const setComposeOpen = useStore((s) => s.setComposeOpen)
-  const setSearch = useStore((s) => s.setSearch)
-  const folder = useStore((s) => s.ui.folder)
-  const setFolder = useStore((s) => s.setFolder)
-  const conversations = useStore((s) => s.conversations)
-  const tags = useStore((s) => s.tags)
-  const notifications = useStore((s) => s.notifications)
-  const markNotificationRead = useStore((s) => s.markNotificationRead)
+  const { theme, tokens: t, toggle, appName } = useTheme();
+  const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const currentUser = useStore((s) => s.currentUser);
+  const logout = useStore((s) => s.logout);
+  const setComposeOpen = useStore((s) => s.setComposeOpen);
+  const setSearch = useStore((s) => s.setSearch);
+  const folder = useStore((s) => s.ui.folder);
+  const setFolder = useStore((s) => s.setFolder);
+  const conversations = useStore((s) => s.conversations);
+  const tags = useStore((s) => s.tags);
+  const notifications = useStore((s) => s.notifications);
+  const markNotificationRead = useStore((s) => s.markNotificationRead);
 
-  const isAgent = currentUser?.role === "admin" || currentUser?.role === "agent"
-  const isCustomer = currentUser?.role === "customer"
+  const isAgent =
+    currentUser?.role === "admin" || currentUser?.role === "agent";
+  const isCustomer = currentUser?.role === "customer";
 
   const unreadCount = conversations.filter(
     (c) => c.folder === "inbox" && !c.readBy.includes(currentUser?.id || ""),
-  ).length
-  const unreadNotifs = notifications.filter((n) => !n.read).length
+  ).length;
+  const unreadNotifs = notifications.filter((n) => !n.read).length;
 
   function handleLogout() {
-    logout()
-    navigate("/login")
+    logout();
+    navigate("/login");
   }
 
-  function notifClick(n: typeof notifications[0]) {
-    markNotificationRead(n.id)
-    setNotifOpen(false)
+  function notifClick(n: (typeof notifications)[0]) {
+    markNotificationRead(n.id);
+    setNotifOpen(false);
   }
 
   const sidebar = (
@@ -96,7 +101,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           I
         </div>
         <span className="font-semibold" style={{ color: t.text }}>
-          Isotopiq Mail
+          {appName}
         </span>
       </div>
 
@@ -116,13 +121,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <nav className="flex-1 overflow-y-auto px-3 space-y-0.5">
         {navItems
           .filter((item) => {
-            if (!currentUser) return item.to === "/portal"
-            if (currentUser.role === "customer") return item.to === "/portal"
-            if (currentUser.role === "agent") return item.to !== "/admin"
-            return true
+            if (!currentUser) return item.to === "/portal";
+            if (currentUser.role === "customer") return item.to === "/portal";
+            if (currentUser.role === "agent") return item.to !== "/admin";
+            return true;
           })
           .map((item) => {
-            const IconComp = item.icon
+            const IconComp = item.icon;
             return (
               <NavLink
                 key={item.to}
@@ -159,7 +164,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </>
                 )}
               </NavLink>
-            )
+            );
           })}
 
         {isAgent && (
@@ -171,7 +176,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               Mail folders
             </div>
             {FOLDERS.map(({ key, label, Icon: FIcon }) => {
-              const active = folder === key
+              const active = folder === key;
               const count =
                 key === "inbox"
                   ? conversations.filter(
@@ -183,13 +188,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     ? conversations.filter((c) => c.folder === "drafts").length
                     : key === "spam"
                       ? conversations.filter((c) => c.folder === "spam").length
-                      : undefined
+                      : undefined;
               return (
                 <button
                   key={key}
                   onClick={() => {
-                    setFolder(key as typeof folder)
-                    navigate("/inbox")
+                    setFolder(key as typeof folder);
+                    navigate("/inbox");
                   }}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all text-left"
                   style={{
@@ -213,7 +218,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </span>
                   ) : null}
                 </button>
-              )
+              );
             })}
 
             <div
@@ -268,7 +273,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     </aside>
-  )
+  );
 
   return (
     <div
@@ -305,9 +310,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <form
               className="relative hidden sm:block"
               onSubmit={(e) => {
-                e.preventDefault()
-                setSearch(query.trim())
-                if (query.trim()) navigate("/inbox")
+                e.preventDefault();
+                setSearch(query.trim());
+                if (query.trim()) navigate("/inbox");
               }}
             >
               <Search
@@ -326,11 +331,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   color: t.text,
                 }}
                 onFocus={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.borderColor = t.accent
+                  (e.currentTarget as HTMLElement).style.borderColor = t.accent;
                 }}
                 onBlur={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.borderColor =
-                    t.inputBorder
+                  (e.currentTarget as HTMLElement).style.borderColor =
+                    t.inputBorder;
                 }}
               />
             </form>
@@ -461,5 +466,5 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
       </div>
     </div>
-  )
+  );
 }

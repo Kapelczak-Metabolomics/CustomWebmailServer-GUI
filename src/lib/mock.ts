@@ -1,4 +1,4 @@
-import { id, getInitials } from "./utils"
+import { id, getInitials } from "./utils";
 import type {
   AppSettings,
   Contact,
@@ -10,13 +10,13 @@ import type {
   Tag,
   User,
   Workflow,
-} from "../types"
+} from "../types";
 
-const now = new Date().toISOString()
-const dayAgo = new Date(Date.now() - 86400000).toISOString()
-const twoDaysAgo = new Date(Date.now() - 172800000).toISOString()
-const threeDaysAgo = new Date(Date.now() - 259200000).toISOString()
-const fourDaysAgo = new Date(Date.now() - 345600000).toISOString()
+const now = new Date().toISOString();
+const dayAgo = new Date(Date.now() - 86400000).toISOString();
+const twoDaysAgo = new Date(Date.now() - 172800000).toISOString();
+const threeDaysAgo = new Date(Date.now() - 259200000).toISOString();
+const fourDaysAgo = new Date(Date.now() - 345600000).toISOString();
 
 export const mockUsers: User[] = [
   {
@@ -59,7 +59,7 @@ export const mockUsers: User[] = [
     permissions: [],
     initials: "MR",
   },
-]
+];
 
 export const mockMailboxes: Mailbox[] = [
   {
@@ -84,7 +84,7 @@ export const mockMailboxes: Mailbox[] = [
     color: "#F59E0B",
     userIds: ["u_alex"],
   },
-]
+];
 
 export const mockContacts: Contact[] = [
   {
@@ -114,7 +114,7 @@ export const mockContacts: Contact[] = [
     customFields: {},
     createdAt: fourDaysAgo,
   },
-]
+];
 
 export const mockTags: Tag[] = [
   { id: "t_important", name: "Important", color: "#EF4444" },
@@ -122,7 +122,7 @@ export const mockTags: Tag[] = [
   { id: "t_design", name: "Design", color: "#8B5CF6" },
   { id: "t_engineering", name: "Engineering", color: "#10B981" },
   { id: "t_partnership", name: "Partnership", color: "#2896E8" },
-]
+];
 
 export const mockSavedReplies: SavedReply[] = [
   {
@@ -137,7 +137,7 @@ export const mockSavedReplies: SavedReply[] = [
     subject: "Re: {{ticket.subject}}",
     body: "<p>Hi,</p><p>We are still looking into this and will update you shortly.</p>",
   },
-]
+];
 
 export const mockWorkflows: Workflow[] = [
   {
@@ -147,7 +147,7 @@ export const mockWorkflows: Workflow[] = [
     conditions: "mailbox == sales",
     actions: "assign u_sarah; tag partnership",
   },
-]
+];
 
 export const mockArticles: KnowledgeBaseArticle[] = [
   {
@@ -170,7 +170,7 @@ export const mockArticles: KnowledgeBaseArticle[] = [
     createdAt: threeDaysAgo,
     updatedAt: threeDaysAgo,
   },
-]
+];
 
 export const mockConversations: Conversation[] = [
   {
@@ -293,7 +293,7 @@ export const mockConversations: Conversation[] = [
     readBy: ["u_alex"],
     collision: [],
   },
-]
+];
 
 export const mockMessages: Message[] = [
   {
@@ -396,7 +396,7 @@ export const mockMessages: Message[] = [
     ],
     createdAt: fourDaysAgo,
   },
-]
+];
 
 export const defaultSettings: AppSettings = {
   companyName: "Isotopiq",
@@ -405,7 +405,7 @@ export const defaultSettings: AppSettings = {
   autoReply: false,
   whiteLabel: false,
   darkMode: true,
-}
+};
 
 export const initialState = {
   currentUser: null as User | null,
@@ -420,4 +420,4 @@ export const initialState = {
   articles: mockArticles,
   notifications: [],
   settings: defaultSettings,
-}
+};

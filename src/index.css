@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap');
-@import 'tailwindcss';
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap");
+@import "tailwindcss";
 
 @theme inline {
   --color-background: var(--background);
@@ -20,20 +20,20 @@
 }
 
 :root {
-  --background: #070B14;
-  --foreground: #E8EDF5;
-  --card: #0E1420;
-  --card-foreground: #E8EDF5;
-  --primary: #2896E8;
+  --background: #070b14;
+  --foreground: #e8edf5;
+  --card: #0e1420;
+  --card-foreground: #e8edf5;
+  --primary: #2896e8;
   --primary-foreground: #ffffff;
-  --secondary: #151C2C;
-  --secondary-foreground: #A8B4C8;
+  --secondary: #151c2c;
+  --secondary-foreground: #a8b4c8;
   --muted: #111827;
-  --muted-foreground: #6B7A96;
-  --accent: #1E76C8;
+  --muted-foreground: #6b7a96;
+  --accent: #1e76c8;
   --accent-foreground: #ffffff;
-  --border: #1C2540;
-  --ring: #2896E8;
+  --border: #1c2540;
+  --ring: #2896e8;
   --radius: 8px;
 }
 
@@ -41,14 +41,16 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   background-color: var(--background);
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
@@ -65,10 +67,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1C2540;
+  background: #1c2540;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2896E8;
+  background: #2896e8;
 }

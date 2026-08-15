@@ -1,8 +1,8 @@
-import { useState } from "react"
-import Layout from "../components/Layout"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
-import { formatDate, getInitials } from "../lib/utils"
+import { useState } from "react";
+import Layout from "../components/Layout";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import { formatDate, getInitials } from "../lib/utils";
 import {
   Search,
   Plus,
@@ -11,52 +11,54 @@ import {
   Building2,
   Calendar,
   StickyNote,
-} from "lucide-react"
+} from "lucide-react";
 
 export default function ContactsPage() {
-  const { tokens: t } = useTheme()
-  const contacts = useStore((s) => s.contacts)
-  const conversations = useStore((s) => s.conversations)
-  const currentUser = useStore((s) => s.currentUser)
-  const addContact = useStore((s) => s.addContact)
-  const addNote = useStore((s) => s.addNote)
-  const [search, setSearch] = useState("")
-  const [showAdd, setShowAdd] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
-  const [note, setNote] = useState("")
+  const { tokens: t } = useTheme();
+  const contacts = useStore((s) => s.contacts);
+  const conversations = useStore((s) => s.conversations);
+  const currentUser = useStore((s) => s.currentUser);
+  const addContact = useStore((s) => s.addContact);
+  const addNote = useStore((s) => s.addNote);
+  const [search, setSearch] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [note, setNote] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
     company: "",
     phone: "",
-  })
+  });
 
   const filtered = contacts.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.email.toLowerCase().includes(search.toLowerCase()) ||
       (c.company && c.company.toLowerCase().includes(search.toLowerCase())),
-  )
-  const selectedContact = contacts.find((c) => c.id === selected)
-  const selectedTickets = conversations.filter((c) => c.customerId === selected)
+  );
+  const selectedContact = contacts.find((c) => c.id === selected);
+  const selectedTickets = conversations.filter(
+    (c) => c.customerId === selected,
+  );
 
-  function handleAdd() {
-    if (!form.name || !form.email) return
-    const c = addContact({
+  async function handleAdd() {
+    if (!form.name || !form.email) return;
+    const c = await addContact({
       name: form.name,
       email: form.email,
       company: form.company,
       phone: form.phone,
-    })
-    setForm({ name: "", email: "", company: "", phone: "" })
-    setShowAdd(false)
-    setSelected(c.id)
+    });
+    setForm({ name: "", email: "", company: "", phone: "" });
+    setShowAdd(false);
+    setSelected(c.id);
   }
 
   function handleAddNote() {
-    if (!selected || !note.trim() || !currentUser) return
-    addNote(selected, note, currentUser.id)
-    setNote("")
+    if (!selected || !note.trim() || !currentUser) return;
+    addNote(selected, note, currentUser.id);
+    setNote("");
   }
 
   return (
@@ -377,7 +379,7 @@ export default function ContactsPage() {
         </div>
       )}
     </Layout>
-  )
+  );
 }
 
 function UsersPlaceholder({ className }: { className?: string }) {
@@ -396,5 +398,5 @@ function UsersPlaceholder({ className }: { className?: string }) {
       <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
-  )
+  );
 }

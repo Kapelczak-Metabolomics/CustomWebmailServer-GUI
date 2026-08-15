@@ -1,15 +1,15 @@
-import { useTheme } from "../theme"
+import { useTheme } from "../theme";
 
 export default function EmptyState({
   icon,
   title,
   message,
 }: {
-  icon?: React.ReactNode
-  title: string
-  message: string
+  icon?: React.ReactNode;
+  title: string;
+  message: string;
 }) {
-  const t = useTheme().tokens
+  const t = useTheme().tokens;
   return (
     <div className="h-full flex flex-col items-center justify-center text-center p-8">
       {icon ? (
@@ -24,5 +24,5 @@ export default function EmptyState({
         {message}
       </p>
     </div>
-  )
+  );
 }

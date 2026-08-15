@@ -1,0 +1,362 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      String   // admin, agent, customer
+  password  String?
+  timezone  String   @default("UTC")
+  status    String   @default("active") // active, away, offline
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedConversations Conversation[]
+  messages              Message[]
+  chatRoomMemberships   ChatRoomMember[]
+  chatMessages          ChatMessage[]
+  followers             ConversationFollower[]
+  videoRoomMembers      VideoRoomMember[]
+  teams                 UserTeam[]
+  timeEntries           TimeEntry[]
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members UserTeam[]
+}
+
+model UserTeam {
+  id     String @id @default(cuid())
+  userId String
+  teamId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+}
+
+model Mailbox {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  color         String   @default("#2896E8")
+  imapHost      String?
+  imapPort      Int      @default(993)
+  imapSecure    Boolean  @default(true)
+  imapUser      String?
+  imapPassword  String?
+  smtpHost      String?
+  smtpPort      Int      @default(587)
+  smtpSecure    Boolean  @default(false)
+  smtpUser      String?
+  smtpPassword  String?
+  lastFetchAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  conversations Conversation[]
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  company   String?
+  phone     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversations Conversation[]
+  customFieldValues CustomFieldValue[]
+}
+
+model Conversation {
+  id            String    @id @default(cuid())
+  number        Int
+  subject       String
+  mailboxId     String
+  contactId     String
+  assigneeId    String?
+  status        String    @default("open") // open, pending, closed, spam
+  priority      String    @default("medium") // low, medium, high, urgent
+  folder        String    @default("inbox") // inbox, starred, sent, drafts, archive, spam, trash
+  source        String    @default("email") // email, chat, portal, api, manual
+  snoozeUntil   DateTime?
+  readBy        String[]  @default([])
+  collision     String[]  @default([])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  mailbox  Mailbox            @relation(fields: [mailboxId], references: [id])
+  contact  Contact            @relation(fields: [contactId], references: [id])
+  assignee User?              @relation(fields: [assigneeId], references: [id])
+  messages Message[]
+  labels   ConversationLabel[]
+  tags     ConversationTag[]
+  followers ConversationFollower[]
+  checklists Checklist[]
+  timeEntries TimeEntry[]
+  ratings    SatisfactionRating[]
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  type           String   @default("customer") // customer, reply, note, system, forward
+  authorId       String?
+  authorType     String   // agent, customer, system
+  body           String
+  bodyText       String?
+  to             String[] @default([])
+  cc             String[] @default([])
+  bcc            String[] @default([])
+  messageId      String?  // external Message-Id for threading
+  createdAt      DateTime @default(now())
+  editedAt       DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  author       User?        @relation(fields: [authorId], references: [id])
+  attachments  Attachment[]
+  timeEntry    TimeEntry?
+}
+
+model Attachment {
+  id        String  @id @default(cuid())
+  messageId String?
+  name      String
+  size      Int
+  type      String
+  s3Key     String
+  url       String
+  createdAt DateTime @default(now())
+
+  message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+}
+
+model Label {
+  id    String @id @default(cuid())
+  name  String @unique
+  color String @default("#6B7280")
+
+  conversations ConversationLabel[]
+}
+
+model ConversationLabel {
+  id             String @id @default(cuid())
+  conversationId String
+  labelId        String
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  label        Label        @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, labelId])
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  name  String @unique
+  color String @default("#6B7280")
+
+  conversations ConversationTag[]
+}
+
+model ConversationTag {
+  id             String @id @default(cuid())
+  conversationId String
+  tagId          String
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tag          Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, tagId])
+}
+
+model ConversationFollower {
+  id             String @id @default(cuid())
+  conversationId String
+  userId         String
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model SavedReply {
+  id        String  @id @default(cuid())
+  name      String
+  subject   String?
+  body      String
+  mailboxId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Workflow {
+  id         String  @id @default(cuid())
+  name       String
+  active     Boolean @default(true)
+  conditions String  // JSON
+  actions    String  // JSON
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Article {
+  id          String  @id @default(cuid())
+  title       String
+  slug        String  @unique
+  body        String
+  category    String
+  published   Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CustomField {
+  id          String @id @default(cuid())
+  name        String
+  type        String // text, number, select, date
+  options     String? // JSON for select
+  target      String // contact, conversation, user
+  createdAt   DateTime @default(now())
+
+  values CustomFieldValue[]
+}
+
+model CustomFieldValue {
+  id            String @id @default(cuid())
+  customFieldId String
+  contactId     String?
+  value         String
+
+  customField CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
+  contact     Contact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([customFieldId, contactId])
+}
+
+model Checklist {
+  id             String         @id @default(cuid())
+  conversationId String
+  title          String
+  createdAt      DateTime       @default(now())
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  items          ChecklistItem[]
+}
+
+model ChecklistItem {
+  id          String    @id @default(cuid())
+  checklistId String
+  text        String
+  done        Boolean   @default(false)
+  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+}
+
+model TimeEntry {
+  id           String       @id @default(cuid())
+  conversationId String
+  messageId    String?      @unique
+  userId       String
+  minutes      Int
+  createdAt    DateTime     @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  user         User         @relation(fields: [userId], references: [id])
+}
+
+model SatisfactionRating {
+  id             String       @id @default(cuid())
+  conversationId String
+  rating         Int          // 1-3 or 1-5
+  comment        String?
+  createdAt      DateTime     @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model ChatRoom {
+  id          String   @id @default(cuid())
+  name        String?
+  direct      Boolean  @default(false)
+  contextType String?  // conversation, none
+  contextId   String?
+  createdAt   DateTime @default(now())
+
+  members  ChatRoomMember[]
+  messages ChatMessage[]
+}
+
+model ChatRoomMember {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  lastReadAt DateTime?
+  createdAt DateTime @default(now())
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VideoRoom {
+  id        String   @id @default(cuid())
+  name      String
+  createdBy String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  members VideoRoomMember[]
+}
+
+model VideoRoomMember {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+
+  room VideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+}
+
+model BrandSettings {
+  id              String  @id @default(cuid())
+  companyName     String?
+  logoS3Key       String?
+  faviconS3Key    String?
+  primaryColor    String  @default("#2896E8")
+  darkModeDefault Boolean @default(true)
+  customCss       String?
+  portalTitle     String?
+  updatedAt       DateTime @updatedAt
+}

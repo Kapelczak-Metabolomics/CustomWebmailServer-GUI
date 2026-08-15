@@ -1,27 +1,27 @@
-import { useState, useMemo } from "react"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
-import Layout from "../components/Layout"
-import { Search, ArrowLeft, HelpCircle } from "lucide-react"
+import { useState, useMemo } from "react";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import Layout from "../components/Layout";
+import { Search, ArrowLeft, HelpCircle } from "lucide-react";
 
 export default function PortalPage() {
-  const { tokens: t } = useTheme()
-  const articles = useStore((s) => s.articles)
+  const { tokens: t } = useTheme();
+  const articles = useStore((s) => s.articles);
   const published = useMemo(
     () => articles.filter((a) => a.published),
     [articles],
-  )
-  const [search, setSearch] = useState("")
-  const [selected, setSelected] = useState<string | null>(null)
+  );
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
 
   const filtered = published.filter(
     (a) =>
       a.title.toLowerCase().includes(search.toLowerCase()) ||
       a.body.toLowerCase().includes(search.toLowerCase()),
-  )
-  const cats = Array.from(new Set(published.map((a) => a.category)))
+  );
+  const cats = Array.from(new Set(published.map((a) => a.category)));
 
-  const active = articles.find((a) => a.id === selected)
+  const active = articles.find((a) => a.id === selected);
 
   return (
     <Layout>
@@ -147,5 +147,5 @@ export default function PortalPage() {
         </div>
       </div>
     </Layout>
-  )
+  );
 }

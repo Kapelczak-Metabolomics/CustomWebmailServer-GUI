@@ -78,121 +78,122 @@ CustomWebmailServer-GUI
 ```ts
 // User / Agent
 interface User {
-  id: string
-  name: string
-  email: string
-  role: 'admin' | 'agent' | 'customer'
-  avatar?: string
-  timezone: string
-  status: 'active' | 'away' | 'offline'
-  permissions: string[]
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "agent" | "customer";
+  avatar?: string;
+  timezone: string;
+  status: "active" | "away" | "offline";
+  permissions: string[];
 }
 
 // Mailbox = shared inbox / support address
 interface Mailbox {
-  id: string
-  name: string
-  email: string
-  color: string
-  users: string[]
-  autoReply?: string
-  signature?: string
+  id: string;
+  name: string;
+  email: string;
+  color: string;
+  users: string[];
+  autoReply?: string;
+  signature?: string;
 }
 
 // Customer / Contact
 interface Contact {
-  id: string
-  name: string
-  email: string
-  company?: string
-  phone?: string
-  notes: Note[]
-  customFields: Record<string, string>
-  createdAt: string
+  id: string;
+  name: string;
+  email: string;
+  company?: string;
+  phone?: string;
+  notes: Note[];
+  customFields: Record<string, string>;
+  createdAt: string;
 }
 
 // Conversation = ticket thread
 interface Conversation {
-  id: string
-  number: number          // ticket number module
-  subject: string
-  mailboxId: string
-  customerId: string
-  assigneeId?: string
-  status: 'open' | 'pending' | 'closed' | 'spam'
-  priority: 'low' | 'medium' | 'high' | 'urgent'
-  folder: 'inbox' | 'starred' | 'sent' | 'drafts' | 'archive' | 'spam' | 'trash'
-  starred: boolean
-  labels: string[]
-  tags: string[]          // free-scout tags
-  followers: string[]     // followers module
-  snoozeUntil?: string    // snooze module
-  source: 'email' | 'chat' | 'portal' | 'api' | 'manual'
-  createdAt: string
-  updatedAt: string
-  lastUserReplyAt?: string
-  lastCustomerReplyAt?: string
-  readBy: string[]        // read receipts
-  collision?: string[]    // who else is viewing
+  id: string;
+  number: number; // ticket number module
+  subject: string;
+  mailboxId: string;
+  customerId: string;
+  assigneeId?: string;
+  status: "open" | "pending" | "closed" | "spam";
+  priority: "low" | "medium" | "high" | "urgent";
+  folder:
+    "inbox" | "starred" | "sent" | "drafts" | "archive" | "spam" | "trash";
+  starred: boolean;
+  labels: string[];
+  tags: string[]; // free-scout tags
+  followers: string[]; // followers module
+  snoozeUntil?: string; // snooze module
+  source: "email" | "chat" | "portal" | "api" | "manual";
+  createdAt: string;
+  updatedAt: string;
+  lastUserReplyAt?: string;
+  lastCustomerReplyAt?: string;
+  readBy: string[]; // read receipts
+  collision?: string[]; // who else is viewing
 }
 
 // Message / Thread entry
 interface Message {
-  id: string
-  conversationId: string
-  type: 'customer' | 'reply' | 'internal' | 'system' | 'note'
-  authorId: string
-  authorType: 'agent' | 'customer' | 'system'
-  body: string            // HTML or markdown
-  bodyText: string
-  to: string[]
-  cc: string[]
-  bcc: string[]
-  attachments: Attachment[]
-  createdAt: string
-  editedAt?: string       // edit threads module
-  openTracking?: boolean  // open tracking module
+  id: string;
+  conversationId: string;
+  type: "customer" | "reply" | "internal" | "system" | "note";
+  authorId: string;
+  authorType: "agent" | "customer" | "system";
+  body: string; // HTML or markdown
+  bodyText: string;
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  attachments: Attachment[];
+  createdAt: string;
+  editedAt?: string; // edit threads module
+  openTracking?: boolean; // open tracking module
 }
 
 interface Attachment {
-  id: string
-  name: string
-  size: number
-  type: string
-  url: string
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
 }
 
 interface Note {
-  id: string
-  authorId: string
-  body: string
-  createdAt: string
+  id: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
 }
 
 interface SavedReply {
-  id: string
-  name: string
-  subject: string
-  body: string
-  mailboxId?: string
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  mailboxId?: string;
 }
 
 interface Workflow {
-  id: string
-  name: string
-  active: boolean
-  conditions: Condition[]
-  actions: Action[]
+  id: string;
+  name: string;
+  active: boolean;
+  conditions: Condition[];
+  actions: Action[];
 }
 
 interface ReportSnapshot {
-  period: string
-  conversations: number
-  replies: number
-  firstResponseTime: number
-  resolutionTime: number
-  satisfaction: number
-  byAgent: Record<string, AgentMetrics>
+  period: string;
+  conversations: number;
+  replies: number;
+  firstResponseTime: number;
+  resolutionTime: number;
+  satisfaction: number;
+  byAgent: Record<string, AgentMetrics>;
 }
 ```
 
@@ -218,64 +219,64 @@ interface ReportSnapshot {
 
 ### FreeScout Modules (UI + state, integrations later)
 
-| Module | In-App Surface |
-|--------|----------------|
-| API & Webhooks | Settings → API keys / webhook endpoints |
-| Auto Login | Settings → authentication |
-| Block External Images | Settings → security / reading pane option |
-| Chat | Chat widget page + conversation source |
-| Checklists | Conversation checklist UI |
-| CRM | Contacts page with company/notes |
-| Custom Fields | Contact, conversation, user custom fields |
-| Custom Folders | Saved search folders in sidebar |
-| Custom Homepage | Dashboard widgets |
-| Custom Signatures | Per-mailbox signatures in compose |
-| Customer Data Enrichment | Contact profile enrichment placeholders |
-| Customization | Branding, CSS, white-label settings |
-| Dark Mode | Already present; extend to all pages |
-| eBay / Shopify / WooCommerce | Integration settings cards |
-| Email Commands | Help overlay for email command syntax |
-| Embed Images | Compose image embedding |
-| End-User Portal | Separate `/portal` routes |
-| Export Conversations | Reports → export buttons |
-| Extended Attachments | Attachment list + preview |
-| Extended Editor | Rich text toolbar |
-| Extra Security | 2FA / security settings |
-| Facebook / Telegram / Twitter / WhatsApp | Channel settings + source badges |
-| Faster Search | Debounced full-text search |
-| Followers | Follow/unfollow UI |
-| GDPR | Data export / delete requests |
-| Global Mailbox | Cross-mailbox unified inbox |
-| IMAP Move | Mailbox sync settings (future backend) |
-| Inbox | Main inbox view (core) |
-| Jira | Issue linking in conversation |
-| Kanban | Board view of conversations |
-| Keyboard Shortcuts | Help modal |
-| Knowledge Base | `/knowledge-base` articles |
-| LDAP / SAML / OAuth | Auth settings |
-| Mail Signing | DKIM / signing settings |
-| Mailbox Icons | Color/icon picker per mailbox |
-| Mentions | `@agent` in internal notes |
-| Mobile Notifications | Notification settings |
-| NoReply | Noreply handling |
-| Office Hours | Business hours / auto-reply schedule |
-| Out of Office | Agent out-of-office banner |
-| Reports | Reports page with charts |
-| Rocket.Chat / Slack | Channel settings + message source |
-| SMS Notifications / SMS Tickets | SMS channel settings |
-| Snooze | Snooze date picker |
-| Spam Filter | Spam rules settings |
-| Sticky Notes | Conversation sticky notes |
-| Tags | Tag management |
-| Teams | Team/group settings |
-| Ticket Number | Display `#12345` ticket numbers |
-| Ticket Translator | Translation options (placeholder UI) |
-| Time Tracking | Time spent input per reply |
-| Two-Factor Authentication | 2FA settings |
-| User Fields | Custom fields on user profiles |
-| Wallboards | Full-screen dashboard |
-| White Label | Branding settings |
-| Workflows | Visual workflow builder (simple) |
+| Module                                   | In-App Surface                            |
+| ---------------------------------------- | ----------------------------------------- |
+| API & Webhooks                           | Settings → API keys / webhook endpoints   |
+| Auto Login                               | Settings → authentication                 |
+| Block External Images                    | Settings → security / reading pane option |
+| Chat                                     | Chat widget page + conversation source    |
+| Checklists                               | Conversation checklist UI                 |
+| CRM                                      | Contacts page with company/notes          |
+| Custom Fields                            | Contact, conversation, user custom fields |
+| Custom Folders                           | Saved search folders in sidebar           |
+| Custom Homepage                          | Dashboard widgets                         |
+| Custom Signatures                        | Per-mailbox signatures in compose         |
+| Customer Data Enrichment                 | Contact profile enrichment placeholders   |
+| Customization                            | Branding, CSS, white-label settings       |
+| Dark Mode                                | Already present; extend to all pages      |
+| eBay / Shopify / WooCommerce             | Integration settings cards                |
+| Email Commands                           | Help overlay for email command syntax     |
+| Embed Images                             | Compose image embedding                   |
+| End-User Portal                          | Separate `/portal` routes                 |
+| Export Conversations                     | Reports → export buttons                  |
+| Extended Attachments                     | Attachment list + preview                 |
+| Extended Editor                          | Rich text toolbar                         |
+| Extra Security                           | 2FA / security settings                   |
+| Facebook / Telegram / Twitter / WhatsApp | Channel settings + source badges          |
+| Faster Search                            | Debounced full-text search                |
+| Followers                                | Follow/unfollow UI                        |
+| GDPR                                     | Data export / delete requests             |
+| Global Mailbox                           | Cross-mailbox unified inbox               |
+| IMAP Move                                | Mailbox sync settings (future backend)    |
+| Inbox                                    | Main inbox view (core)                    |
+| Jira                                     | Issue linking in conversation             |
+| Kanban                                   | Board view of conversations               |
+| Keyboard Shortcuts                       | Help modal                                |
+| Knowledge Base                           | `/knowledge-base` articles                |
+| LDAP / SAML / OAuth                      | Auth settings                             |
+| Mail Signing                             | DKIM / signing settings                   |
+| Mailbox Icons                            | Color/icon picker per mailbox             |
+| Mentions                                 | `@agent` in internal notes                |
+| Mobile Notifications                     | Notification settings                     |
+| NoReply                                  | Noreply handling                          |
+| Office Hours                             | Business hours / auto-reply schedule      |
+| Out of Office                            | Agent out-of-office banner                |
+| Reports                                  | Reports page with charts                  |
+| Rocket.Chat / Slack                      | Channel settings + message source         |
+| SMS Notifications / SMS Tickets          | SMS channel settings                      |
+| Snooze                                   | Snooze date picker                        |
+| Spam Filter                              | Spam rules settings                       |
+| Sticky Notes                             | Conversation sticky notes                 |
+| Tags                                     | Tag management                            |
+| Teams                                    | Team/group settings                       |
+| Ticket Number                            | Display `#12345` ticket numbers           |
+| Ticket Translator                        | Translation options (placeholder UI)      |
+| Time Tracking                            | Time spent input per reply                |
+| Two-Factor Authentication                | 2FA settings                              |
+| User Fields                              | Custom fields on user profiles            |
+| Wallboards                               | Full-screen dashboard                     |
+| White Label                              | Branding settings                         |
+| Workflows                                | Visual workflow builder (simple)          |
 
 ## 7. Implementation Phases
 

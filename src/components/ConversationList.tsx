@@ -1,81 +1,81 @@
-import { useMemo } from "react"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
-import { formatRelative, getInitials, stripHtml } from "../lib/utils"
-import LabelBadge from "./LabelBadge"
-import { Icon } from "./Icon"
-import { Search } from "lucide-react"
+import { useMemo } from "react";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import { formatRelative, getInitials, stripHtml } from "../lib/utils";
+import LabelBadge from "./LabelBadge";
+import { Icon } from "./Icon";
+import { Search } from "lucide-react";
 
 const statusIcon: Record<string, string> = {
   open: "○",
   pending: "◐",
   closed: "●",
   spam: "⚠",
-}
+};
 
 export default function ConversationList() {
-  const { tokens: t } = useTheme()
-  const search = useStore((s) => s.ui.search)
-  const setSearch = useStore((s) => s.setSearch)
-  const currentUser = useStore((s) => s.currentUser)
-  const conversations = useStore((s) => s.conversations)
-  const messages = useStore((s) => s.messages)
-  const contacts = useStore((s) => s.contacts)
-  const users = useStore((s) => s.users)
-  const tags = useStore((s) => s.tags)
-  const selectedId = useStore((s) => s.ui.selectedId)
-  const selectConversation = useStore((s) => s.selectConversation)
-  const markRead = useStore((s) => s.markRead)
-  const toggleStar = useStore((s) => s.toggleStar)
-  const folder = useStore((s) => s.ui.folder)
+  const { tokens: t } = useTheme();
+  const search = useStore((s) => s.ui.search);
+  const setSearch = useStore((s) => s.setSearch);
+  const currentUser = useStore((s) => s.currentUser);
+  const conversations = useStore((s) => s.conversations);
+  const messages = useStore((s) => s.messages);
+  const contacts = useStore((s) => s.contacts);
+  const users = useStore((s) => s.users);
+  const tags = useStore((s) => s.tags);
+  const selectedId = useStore((s) => s.ui.selectedId);
+  const selectConversation = useStore((s) => s.selectConversation);
+  const markRead = useStore((s) => s.markRead);
+  const toggleStar = useStore((s) => s.toggleStar);
+  const folder = useStore((s) => s.ui.folder);
 
   const tagMap = useMemo(
     () => Object.fromEntries(tags.map((tag) => [tag.name, tag])),
     [tags],
-  )
+  );
 
   const conversationsWithMeta = useMemo(() => {
     return conversations.map((c) => {
       const convMessages = messages
         .filter((m) => m.conversationId === c.id)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      const last = convMessages[convMessages.length - 1]
-      const contact = contacts.find((x) => x.id === c.customerId)
-      const customerName = contact?.name || c.customerId
-      const preview = last ? stripHtml(last.bodyText || last.body) : c.subject
-      return { c, last, customerName, preview }
-    })
-  }, [conversations, contacts, messages])
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      const last = convMessages[convMessages.length - 1];
+      const contact = contacts.find((x) => x.id === c.customerId);
+      const customerName = contact?.name || c.customerId;
+      const preview = last ? stripHtml(last.bodyText || last.body) : c.subject;
+      return { c, last, customerName, preview };
+    });
+  }, [conversations, contacts, messages]);
 
   const filtered = useMemo(() => {
     return conversationsWithMeta
       .filter(({ c }) => {
-        if (folder === "starred") return c.starred
-        if (folder === "sent") return c.folder === "sent"
-        return c.folder === folder
+        if (folder === "starred") return c.starred;
+        if (folder === "sent") return c.folder === "sent";
+        return c.folder === folder;
       })
       .filter(({ c, last, customerName, preview }) => {
-        const term = search.toLowerCase()
-        if (!term) return true
+        const term = search.toLowerCase();
+        if (!term) return true;
         return (
           c.subject.toLowerCase().includes(term) ||
           customerName.toLowerCase().includes(term) ||
           preview.toLowerCase().includes(term) ||
           (last && last.body.toLowerCase().includes(term)) ||
           c.labels.some((l) => l.toLowerCase().includes(term))
-        )
+        );
       })
       .sort((a, b) => {
-        if (a.c.starred !== b.c.starred) return a.c.starred ? -1 : 1
-        const aUnread = !a.c.readBy.includes(currentUser?.id || "") ? 1 : 0
-        const bUnread = !b.c.readBy.includes(currentUser?.id || "") ? 1 : 0
-        return bUnread - aUnread || b.c.updatedAt.localeCompare(a.c.updatedAt)
-      })
-  }, [conversationsWithMeta, currentUser, folder, search])
+        if (a.c.starred !== b.c.starred) return a.c.starred ? -1 : 1;
+        const aUnread = !a.c.readBy.includes(currentUser?.id || "") ? 1 : 0;
+        const bUnread = !b.c.readBy.includes(currentUser?.id || "") ? 1 : 0;
+        return bUnread - aUnread || b.c.updatedAt.localeCompare(a.c.updatedAt);
+      });
+  }, [conversationsWithMeta, currentUser, folder, search]);
 
   function handleSelect(id: string) {
-    selectConversation(id)
-    if (currentUser) markRead(id, currentUser.id)
+    selectConversation(id);
+    if (currentUser) markRead(id, currentUser.id);
   }
 
   return (
@@ -107,10 +107,10 @@ export default function ConversationList() {
               color: t.text,
             }}
             onFocus={(e) => {
-              e.currentTarget.style.borderColor = t.accent
+              e.currentTarget.style.borderColor = t.accent;
             }}
             onBlur={(e) => {
-              e.currentTarget.style.borderColor = t.inputBorder
+              e.currentTarget.style.borderColor = t.inputBorder;
             }}
           />
         </div>
@@ -134,10 +134,10 @@ export default function ConversationList() {
           </div>
         ) : (
           filtered.map(({ c, customerName, preview, last }) => {
-            const unread = !c.readBy.includes(currentUser?.id || "")
+            const unread = !c.readBy.includes(currentUser?.id || "");
             const assignee = c.assigneeId
               ? users.find((u) => u.id === c.assigneeId)
-              : null
+              : null;
             return (
               <div
                 key={c.id}
@@ -146,8 +146,8 @@ export default function ConversationList() {
                 onClick={() => handleSelect(c.id)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    handleSelect(c.id)
+                    e.preventDefault();
+                    handleSelect(c.id);
                   }
                 }}
                 className="w-full text-left px-4 py-3 border-b transition-colors cursor-pointer"
@@ -267,8 +267,8 @@ export default function ConversationList() {
                       </div>
                       <button
                         onClick={(e) => {
-                          e.stopPropagation()
-                          toggleStar(c.id)
+                          e.stopPropagation();
+                          toggleStar(c.id);
                         }}
                         className="p-1 rounded transition-colors"
                         style={{ color: c.starred ? "#F59E0B" : t.textFaint }}
@@ -279,10 +279,10 @@ export default function ConversationList() {
                   </div>
                 </div>
               </div>
-            )
+            );
           })
         )}
       </div>
     </div>
-  )
+  );
 }

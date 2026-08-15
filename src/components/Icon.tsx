@@ -331,4 +331,4 @@ export const Icon = {
       />
     </svg>
   ),
-}
+};

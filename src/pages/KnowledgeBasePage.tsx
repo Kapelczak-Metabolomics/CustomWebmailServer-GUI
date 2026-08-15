@@ -1,34 +1,38 @@
-import { useState } from "react"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
-import Layout from "../components/Layout"
-import { formatDate } from "../lib/utils"
-import { Search, Plus, BookOpen, Eye, Edit3, X } from "lucide-react"
+import { useState } from "react";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import Layout from "../components/Layout";
+import { formatDate } from "../lib/utils";
+import { Search, Plus, BookOpen, Eye, Edit3, X } from "lucide-react";
 
 export default function KnowledgeBasePage() {
-  const { tokens: t } = useTheme()
-  const articles = useStore((s) => s.articles)
-  const addArticle = useStore((s) => s.addArticle)
-  const [search, setSearch] = useState("")
-  const [selected, setSelected] = useState<string | null>(null)
-  const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ title: "", category: "General", body: "" })
+  const { tokens: t } = useTheme();
+  const articles = useStore((s) => s.articles);
+  const addArticle = useStore((s) => s.addArticle);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    category: "General",
+    body: "",
+  });
 
   const filtered = articles.filter(
     (a) =>
       a.title.toLowerCase().includes(search.toLowerCase()) ||
       a.category.toLowerCase().includes(search.toLowerCase()),
-  )
-  const cats = Array.from(new Set(articles.map((a) => a.category)))
+  );
+  const cats = Array.from(new Set(articles.map((a) => a.category)));
 
   function handleAdd() {
-    if (!form.title.trim() || !form.body.trim()) return
-    addArticle({ title: form.title, category: form.category, body: form.body })
-    setForm({ title: "", category: "General", body: "" })
-    setShowAdd(false)
+    if (!form.title.trim() || !form.body.trim()) return;
+    addArticle({ title: form.title, category: form.category, body: form.body });
+    setForm({ title: "", category: "General", body: "" });
+    setShowAdd(false);
   }
 
-  const active = articles.find((a) => a.id === selected)
+  const active = articles.find((a) => a.id === selected);
 
   return (
     <Layout>
@@ -238,5 +242,5 @@ export default function KnowledgeBasePage() {
         </div>
       )}
     </Layout>
-  )
+  );
 }

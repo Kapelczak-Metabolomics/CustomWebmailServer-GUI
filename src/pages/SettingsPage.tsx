@@ -1,7 +1,8 @@
-import { useState } from "react"
-import Layout from "../components/Layout"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
+import { useEffect, useState } from "react";
+import Layout from "../components/Layout";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import { api } from "../lib/api";
 import {
   Bell,
   Palette,
@@ -10,45 +11,63 @@ import {
   Building2,
   Plus,
   Save,
-} from "lucide-react"
+} from "lucide-react";
 
 export default function SettingsPage() {
-  const { theme, tokens: t, setTheme } = useTheme()
-  const settings = useStore((s) => s.settings)
-  const updateSettings = useStore((s) => s.updateSettings)
-  const mailboxes = useStore((s) => s.mailboxes)
+  const { theme, tokens: t, setTheme, brand, refreshBrand } = useTheme();
+  const settings = useStore((s) => s.settings);
+  const updateSettings = useStore((s) => s.updateSettings);
+  const mailboxes = useStore((s) => s.mailboxes);
 
-  const tags = useStore((s) => s.tags)
-  const createTag = useStore((s) => s.createTag)
-  const savedReplies = useStore((s) => s.savedReplies)
-  const addSavedReply = useStore((s) => s.addSavedReply)
+  const tags = useStore((s) => s.tags);
+  const createTag = useStore((s) => s.createTag);
+  const savedReplies = useStore((s) => s.savedReplies);
+  const addSavedReply = useStore((s) => s.addSavedReply);
 
-  const [form, setForm] = useState(settings)
-  const [newTag, setNewTag] = useState("")
-  const [newReply, setNewReply] = useState({ name: "", body: "" })
-  const [showReply, setShowReply] = useState(false)
+  const [form, setForm] = useState(settings);
+  const [newTag, setNewTag] = useState("");
+  const [newReply, setNewReply] = useState({ name: "", body: "" });
+  const [showReply, setShowReply] = useState(false);
+  const [brandForm, setBrandForm] = useState({
+    companyName: brand?.companyName || "",
+    primaryColor: brand?.primaryColor || "#2896E8",
+  });
+
+  useEffect(() => {
+    if (brand) {
+      setBrandForm({
+        companyName: brand.companyName || "",
+        primaryColor: brand.primaryColor || "#2896E8",
+      });
+    }
+  }, [brand]);
 
   function saveSettings() {
-    updateSettings(form)
+    updateSettings(form);
+  }
+
+  async function saveBrand() {
+    await api.updateBrand(brandForm);
+    await refreshBrand();
   }
 
   function addTag() {
-    if (!newTag.trim()) return
+    if (!newTag.trim()) return;
     createTag(
       newTag.trim(),
       "#" +
         Math.floor(Math.random() * 16777215)
           .toString(16)
           .padStart(6, "0"),
-    )
-    setNewTag("")
+    );
+    setNewTag("");
   }
 
   function addReply() {
-    if (!newReply.name.trim() || !newReply.body.trim()) return
-    addSavedReply({ name: newReply.name, body: newReply.body })
-    setNewReply({ name: "", body: "" })
-    setShowReply(false)
+    if (!newReply.name.trim() || !newReply.body.trim()) return;
+    addSavedReply({ name: newReply.name, body: newReply.body });
+    setNewReply({ name: "", body: "" });
+    setShowReply(false);
   }
 
   return (
@@ -143,6 +162,36 @@ export default function SettingsPage() {
                   }}
                 >
                   Light
+                </button>
+              </div>
+            </Section>
+
+            <Section icon={Building2} title="Brand">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Company name"
+                  value={brandForm.companyName}
+                  onChange={(v) =>
+                    setBrandForm({ ...brandForm, companyName: v })
+                  }
+                  t={t}
+                />
+                <Input
+                  label="Primary color"
+                  value={brandForm.primaryColor}
+                  onChange={(v) =>
+                    setBrandForm({ ...brandForm, primaryColor: v })
+                  }
+                  t={t}
+                />
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={saveBrand}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                  style={{ background: t.accentGrad }}
+                >
+                  <Save className="w-4 h-4" /> Update brand
                 </button>
               </div>
             </Section>
@@ -276,7 +325,7 @@ export default function SettingsPage() {
         </div>
       </div>
     </Layout>
-  )
+  );
 }
 
 function Section({
@@ -284,11 +333,11 @@ function Section({
   title,
   children,
 }: {
-  icon: any
-  title: string
-  children: React.ReactNode
+  icon: any;
+  title: string;
+  children: React.ReactNode;
 }) {
-  const t = useTheme().tokens
+  const t = useTheme().tokens;
   return (
     <div
       className="rounded-xl p-5"
@@ -302,7 +351,7 @@ function Section({
       </div>
       {children}
     </div>
-  )
+  );
 }
 
 function Input({
@@ -311,10 +360,10 @@ function Input({
   onChange,
   t,
 }: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  t: any
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  t: any;
 }) {
   return (
     <div>
@@ -335,7 +384,7 @@ function Input({
         }}
       />
     </div>
-  )
+  );
 }
 
 function Toggle({
@@ -344,10 +393,10 @@ function Toggle({
   onChange,
   t,
 }: {
-  label: string
-  checked: boolean
-  onChange: (v: boolean) => void
-  t: any
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  t: any;
 }) {
   return (
     <label className="flex items-center justify-between py-2">
@@ -366,5 +415,5 @@ function Toggle({
         />
       </button>
     </label>
-  )
+  );
 }

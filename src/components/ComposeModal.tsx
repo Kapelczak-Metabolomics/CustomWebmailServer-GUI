@@ -1,85 +1,120 @@
-import { useState, useMemo } from "react"
-import { useTheme } from "../theme"
-import { useStore } from "../store"
-import { Icon } from "./Icon"
-import { X, Paperclip } from "lucide-react"
+import { useState, useMemo } from "react";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import { api } from "../lib/api";
+import { Icon } from "./Icon";
+import { X, Paperclip } from "lucide-react";
 
 function toHtml(text: string) {
   return text
     .split(/\n+/)
     .filter(Boolean)
     .map((p) => `<p>${p.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)
-    .join("")
+    .join("");
 }
 
 export default function ComposeModal() {
-  const { tokens: t } = useTheme()
-  const open = useStore((s) => s.ui.composeOpen)
-  const setComposeOpen = useStore((s) => s.setComposeOpen)
-  const mailboxes = useStore((s) => s.mailboxes)
-  const contacts = useStore((s) => s.contacts)
-  const currentUser = useStore((s) => s.currentUser)
-  const createConversation = useStore((s) => s.createConversation)
-  const addContact = useStore((s) => s.addContact)
-  const selectConversation = useStore((s) => s.selectConversation)
+  const { tokens: t } = useTheme();
+  const open = useStore((s) => s.ui.composeOpen);
+  const setComposeOpen = useStore((s) => s.setComposeOpen);
+  const mailboxes = useStore((s) => s.mailboxes);
+  const contacts = useStore((s) => s.contacts);
+  const currentUser = useStore((s) => s.currentUser);
+  const createConversation = useStore((s) => s.createConversation);
+  const addContact = useStore((s) => s.addContact);
+  const selectConversation = useStore((s) => s.selectConversation);
 
-  const [to, setTo] = useState("")
-  const [subject, setSubject] = useState("")
-  const [body, setBody] = useState("")
-  const [mailboxId, setMailboxId] = useState(mailboxes[0]?.id || "")
-  const [errors, setErrors] = useState<string[]>([])
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [mailboxId, setMailboxId] = useState(mailboxes[0]?.id || "");
+  const [errors, setErrors] = useState<string[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<
+    {
+      name: string;
+      url: string;
+    }[]
+  >([]);
 
   const filteredContacts = useMemo(() => {
-    const term = to.trim().toLowerCase()
-    if (!term) return []
+    const term = to.trim().toLowerCase();
+    if (!term) return [];
     return contacts
       .filter(
         (c) =>
           c.name.toLowerCase().includes(term) ||
           c.email.toLowerCase().includes(term),
       )
-      .slice(0, 5)
-  }, [contacts, to])
+      .slice(0, 5);
+  }, [contacts, to]);
 
   function close() {
-    setComposeOpen(false)
-    setTo("")
-    setSubject("")
-    setBody("")
-    setErrors([])
+    setComposeOpen(false);
+    setTo("");
+    setSubject("");
+    setBody("");
+    setErrors([]);
+    setPendingAttachments([]);
   }
 
-  function submit() {
-    const e = []
-    if (!to.includes("@")) e.push("Enter a valid email")
-    if (!subject.trim()) e.push("Subject is required")
-    if (!body.trim()) e.push("Message body is required")
+  function attachmentHtml() {
+    if (!pendingAttachments.length) return "";
+    return pendingAttachments
+      .map(
+        (a) =>
+          `<p><a href="${a.url}" target="_blank" rel="noopener noreferrer">${a.name}</a></p>`,
+      )
+      .join("");
+  }
+
+  async function handleAttach(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const { uploadUrl, url } = await api.getUploadUrl(
+        file.name,
+        file.type || "application/octet-stream",
+      );
+      await fetch(uploadUrl, { method: "PUT", body: file });
+      setPendingAttachments((prev) => [...prev, { name: file.name, url }]);
+    } catch (err) {
+      console.error("Upload failed", err);
+      alert("Failed to upload attachment");
+    }
+  }
+
+  async function submit() {
+    const e = [];
+    if (!to.includes("@")) e.push("Enter a valid email");
+    if (!subject.trim()) e.push("Subject is required");
+    if (!body.trim() && !pendingAttachments.length)
+      e.push("Message body is required");
     if (e.length) {
-      setErrors(e)
-      return
+      setErrors(e);
+      return;
     }
 
     let contact = contacts.find(
       (c) => c.email.toLowerCase() === to.trim().toLowerCase(),
-    )
+    );
     if (!contact) {
       const name = to
         .split("@")[0]
         .replace(/\.|_/g, " ")
-        .replace(/\b\w/g, (ch) => ch.toUpperCase())
-      contact = addContact({ name, email: to.trim() })
+        .replace(/\b\w/g, (ch) => ch.toUpperCase());
+      contact = await addContact({ name, email: to.trim() });
     }
-    const conv = createConversation({
+    const conv = await createConversation({
       subject: subject.trim(),
       mailboxId,
       customerId: contact.id,
-      body: toHtml(body.trim()),
-    })
-    selectConversation(conv.id)
-    close()
+      body: toHtml(body.trim()) + attachmentHtml(),
+    });
+    selectConversation(conv.id);
+    close();
   }
 
-  if (!open) return null
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-6">
@@ -227,13 +262,31 @@ export default function ComposeModal() {
           </div>
         </div>
 
+        {pendingAttachments.length > 0 && (
+          <div className="px-4 py-2 flex flex-wrap gap-2">
+            {pendingAttachments.map((a, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs"
+                style={{ backgroundColor: t.inputBg, color: t.textSub }}
+              >
+                <Paperclip className="w-3 h-3" />
+                {a.name}
+              </span>
+            ))}
+          </div>
+        )}
         <div
           className="flex items-center justify-between px-4 py-3 border-t"
           style={{ borderColor: t.divider, backgroundColor: t.readTopBg }}
         >
-          <button className="p-2 rounded-lg" style={{ color: t.textSub }}>
+          <label
+            className="p-2 rounded-lg cursor-pointer"
+            style={{ color: t.textSub }}
+          >
             <Paperclip className="w-4 h-4" />
-          </button>
+            <input type="file" className="hidden" onChange={handleAttach} />
+          </label>
           <div className="flex items-center gap-2">
             <button
               onClick={close}
@@ -253,5 +306,5 @@ export default function ComposeModal() {
         </div>
       </div>
     </div>
-  )
+  );
 }
