@@ -27,6 +27,7 @@ import {
   Plus,
   X,
   ChevronDown,
+  ChevronLeft,
   Reply,
   MoreHorizontal,
 } from "lucide-react"
@@ -219,6 +220,14 @@ export default function ReadingPane() {
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
+            <button
+              onClick={() => selectConversation(null)}
+              className="md:hidden p-1 rounded -ml-1"
+              style={{ color: t.textSub }}
+              aria-label="Back to list"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
             <h2 className="text-base font-semibold" style={{ color: t.text }}>
               {conv.subject}
             </h2>
