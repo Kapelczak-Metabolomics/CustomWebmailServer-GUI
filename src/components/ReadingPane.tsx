@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useTheme } from "../theme"
 import { useStore } from "../store"
 import {
@@ -64,6 +64,11 @@ export default function ReadingPane() {
 
   const [replyText, setReplyText] = useState("")
   const [replyMode, setReplyMode] = useState<"reply" | "note">("reply")
+
+  useEffect(() => {
+    setReplyText("")
+    setReplyMode("reply")
+  }, [selectedId])
   const [showTagMenu, setShowTagMenu] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const [showMore, setShowMore] = useState(false)

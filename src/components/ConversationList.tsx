@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useMemo } from "react"
 import { useTheme } from "../theme"
 import { useStore } from "../store"
 import { formatRelative, getInitials, stripHtml } from "../lib/utils"
@@ -15,7 +15,8 @@ const statusIcon: Record<string, string> = {
 
 export default function ConversationList() {
   const { tokens: t } = useTheme()
-  const [search, setSearch] = useState("")
+  const search = useStore((s) => s.ui.search)
+  const setSearch = useStore((s) => s.setSearch)
   const currentUser = useStore((s) => s.currentUser)
   const conversations = useStore((s) => s.conversations)
   const messages = useStore((s) => s.messages)

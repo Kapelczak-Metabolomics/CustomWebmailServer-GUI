@@ -1,7 +1,6 @@
 import Layout from "../components/Layout"
 import ConversationList from "../components/ConversationList"
 import ReadingPane from "../components/ReadingPane"
-import ComposeModal from "../components/ComposeModal"
 
 export default function InboxPage() {
   return (
@@ -14,7 +13,6 @@ export default function InboxPage() {
           <ReadingPane />
         </div>
       </div>
-      <ComposeModal />
     </Layout>
   )
 }

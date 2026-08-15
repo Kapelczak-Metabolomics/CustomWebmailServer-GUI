@@ -370,15 +370,27 @@ export const useStore = create<StoreState>()(
           conversations: [conversation, ...state.conversations],
         }))
         if (data.body) {
-          get().sendMessage(conversation.id, {
-            type: "customer",
-            authorId: data.customerId,
-            authorType: "customer",
-            body: data.body,
-            to: [
-              get().mailboxes.find((m) => m.id === data.mailboxId)?.email || "",
-            ],
-          })
+          const contact = get().contacts.find((c) => c.id === data.customerId)
+          if (currentUser) {
+            get().sendMessage(conversation.id, {
+              type: "reply",
+              authorId: currentUser.id,
+              authorType: "agent",
+              body: data.body,
+              to: [contact?.email || ""],
+            })
+          } else {
+            get().sendMessage(conversation.id, {
+              type: "customer",
+              authorId: data.customerId,
+              authorType: "customer",
+              body: data.body,
+              to: [
+                get().mailboxes.find((m) => m.id === data.mailboxId)?.email ||
+                  "",
+              ],
+            })
+          }
         }
         return conversation
       },

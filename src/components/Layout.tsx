@@ -49,15 +49,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [query, setQuery] = useState("")
   const currentUser = useStore((s) => s.currentUser)
   const logout = useStore((s) => s.logout)
   const setComposeOpen = useStore((s) => s.setComposeOpen)
+  const setSearch = useStore((s) => s.setSearch)
   const folder = useStore((s) => s.ui.folder)
   const setFolder = useStore((s) => s.setFolder)
   const conversations = useStore((s) => s.conversations)
   const tags = useStore((s) => s.tags)
   const notifications = useStore((s) => s.notifications)
   const markNotificationRead = useStore((s) => s.markNotificationRead)
+
+  const isAgent = currentUser?.role === "admin" || currentUser?.role === "agent"
+  const isCustomer = currentUser?.role === "customer"
 
   const unreadCount = conversations.filter(
     (c) => c.folder === "inbox" && !c.readBy.includes(currentUser?.id || ""),
@@ -95,130 +100,143 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </span>
       </div>
 
-      <div className="px-4 mb-4 flex-shrink-0">
-        <button
-          onClick={() => setComposeOpen(true)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
-          style={{ background: t.accentGrad, boxShadow: t.accentGlow }}
-        >
-          <Icon.Compose />
-          New Conversation
-        </button>
-      </div>
+      {isAgent && (
+        <div className="px-4 mb-4 flex-shrink-0">
+          <button
+            onClick={() => setComposeOpen(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
+            style={{ background: t.accentGrad, boxShadow: t.accentGlow }}
+          >
+            <Icon.Compose />
+            New Conversation
+          </button>
+        </div>
+      )}
 
       <nav className="flex-1 overflow-y-auto px-3 space-y-0.5">
-        {navItems.map((item) => {
-          const IconComp = item.icon
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={() => setMobileOpen(false)}
-              className={({ isActive }) =>
-                `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  isActive ? "" : ""
-                }`
-              }
-              style={({ isActive }) => ({
-                backgroundColor: isActive ? t.navActive : "transparent",
-                color: isActive ? t.accent : t.textSub,
-              })}
+        {navItems
+          .filter((item) => {
+            if (!currentUser) return item.to === "/portal"
+            if (currentUser.role === "customer") return item.to === "/portal"
+            if (currentUser.role === "agent") return item.to !== "/admin"
+            return true
+          })
+          .map((item) => {
+            const IconComp = item.icon
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) =>
+                  `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isActive ? "" : ""
+                  }`
+                }
+                style={({ isActive }) => ({
+                  backgroundColor: isActive ? t.navActive : "transparent",
+                  color: isActive ? t.accent : t.textSub,
+                })}
+              >
+                {({ isActive }) => (
+                  <>
+                    <IconComp
+                      className="w-4 h-4"
+                      style={{ color: isActive ? t.accent : t.textFaint }}
+                    />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {item.to === "/inbox" && unreadCount > 0 && (
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: isActive ? t.accent : t.badgeBg,
+                          color: isActive ? "#fff" : t.badgeText,
+                        }}
+                      >
+                        {unreadCount}
+                      </span>
+                    )}
+                  </>
+                )}
+              </NavLink>
+            )
+          })}
+
+        {isAgent && (
+          <>
+            <div
+              className="mt-6 mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest"
+              style={{ color: t.textGhost }}
             >
-              {({ isActive }) => (
-                <>
-                  <IconComp
-                    className="w-4 h-4"
-                    style={{ color: isActive ? t.accent : t.textFaint }}
-                  />
-                  <span className="flex-1 text-left">{item.label}</span>
-                  {item.to === "/inbox" && unreadCount > 0 && (
+              Mail folders
+            </div>
+            {FOLDERS.map(({ key, label, Icon: FIcon }) => {
+              const active = folder === key
+              const count =
+                key === "inbox"
+                  ? conversations.filter(
+                      (c) =>
+                        c.folder === "inbox" &&
+                        !c.readBy.includes(currentUser?.id || ""),
+                    ).length
+                  : key === "drafts"
+                    ? conversations.filter((c) => c.folder === "drafts").length
+                    : key === "spam"
+                      ? conversations.filter((c) => c.folder === "spam").length
+                      : undefined
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setFolder(key as typeof folder)
+                    navigate("/inbox")
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all text-left"
+                  style={{
+                    backgroundColor: active ? t.navActive : "transparent",
+                    color: active ? t.accent : t.textSub,
+                  }}
+                >
+                  <span style={{ color: active ? t.accent : t.textFaint }}>
+                    <FIcon />
+                  </span>
+                  <span className="flex-1">{label}</span>
+                  {count ? (
                     <span
                       className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                       style={{
-                        backgroundColor: isActive ? t.accent : t.badgeBg,
-                        color: isActive ? "#fff" : t.badgeText,
+                        backgroundColor: active ? t.accent : t.badgeBg,
+                        color: active ? "#fff" : t.badgeText,
                       }}
                     >
-                      {unreadCount}
+                      {count}
                     </span>
-                  )}
-                </>
-              )}
-            </NavLink>
-          )
-        })}
+                  ) : null}
+                </button>
+              )
+            })}
 
-        <div
-          className="mt-6 mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest"
-          style={{ color: t.textGhost }}
-        >
-          Mail folders
-        </div>
-        {FOLDERS.map(({ key, label, Icon: FIcon }) => {
-          const active = folder === key
-          const count =
-            key === "inbox"
-              ? conversations.filter(
-                  (c) =>
-                    c.folder === "inbox" &&
-                    !c.readBy.includes(currentUser?.id || ""),
-                ).length
-              : key === "drafts"
-                ? conversations.filter((c) => c.folder === "drafts").length
-                : key === "spam"
-                  ? conversations.filter((c) => c.folder === "spam").length
-                  : undefined
-          return (
-            <button
-              key={key}
-              onClick={() => {
-                setFolder(key as typeof folder)
-                navigate("/inbox")
-              }}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all text-left"
-              style={{
-                backgroundColor: active ? t.navActive : "transparent",
-                color: active ? t.accent : t.textSub,
-              }}
+            <div
+              className="mt-6 mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest"
+              style={{ color: t.textGhost }}
             >
-              <span style={{ color: active ? t.accent : t.textFaint }}>
-                <FIcon />
-              </span>
-              <span className="flex-1">{label}</span>
-              {count ? (
+              Tags
+            </div>
+            {tags.map((tag) => (
+              <button
+                key={tag.id}
+                className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors text-left"
+                style={{ color: t.textSub }}
+              >
                 <span
-                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                  style={{
-                    backgroundColor: active ? t.accent : t.badgeBg,
-                    color: active ? "#fff" : t.badgeText,
-                  }}
-                >
-                  {count}
-                </span>
-              ) : null}
-            </button>
-          )
-        })}
-
-        <div
-          className="mt-6 mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest"
-          style={{ color: t.textGhost }}
-        >
-          Tags
-        </div>
-        {tags.map((tag) => (
-          <button
-            key={tag.id}
-            className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors text-left"
-            style={{ color: t.textSub }}
-          >
-            <span
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: tag.color }}
-            />
-            {tag.name}
-          </button>
-        ))}
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: tag.color }}
+                />
+                {tag.name}
+              </button>
+            ))}
+          </>
+        )}
       </nav>
 
       <div
@@ -284,14 +302,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="relative hidden sm:block">
+            <form
+              className="relative hidden sm:block"
+              onSubmit={(e) => {
+                e.preventDefault()
+                setSearch(query.trim())
+                if (query.trim()) navigate("/inbox")
+              }}
+            >
               <Search
                 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
                 style={{ color: t.textFaint }}
               />
               <input
-                type="text"
-                placeholder="Search everything..."
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search conversations..."
                 className="pl-9 pr-3 py-2 text-sm rounded-lg outline-none w-64 transition-all"
                 style={{
                   backgroundColor: t.inputBg,
@@ -306,18 +333,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     t.inputBorder
                 }}
               />
-            </div>
+            </form>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setComposeOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
-              style={{ background: t.accentGrad }}
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New</span>
-            </button>
+            {isAgent && (
+              <button
+                onClick={() => setComposeOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
+                style={{ background: t.accentGrad }}
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New</span>
+              </button>
+            )}
 
             <div className="relative">
               <button
