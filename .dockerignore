@@ -1,0 +1,16 @@
+node_modules
+dist
+.git
+.github
+*.md
+.env
+.env.local
+.vscode
+.idea
+.DS_Store
+coverage
+*.log
+.cache
+.svelte-kit
+.next
+out
