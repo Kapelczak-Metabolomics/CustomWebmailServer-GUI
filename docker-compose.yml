@@ -4,8 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: isotopiq-mail
-    ports:
-      - "3000:3000"
+    # Easypanel proxies to container port 3000 via a Domain; no host port binding needed
+    expose:
+      - "3000"
     env_file:
       - .env
     environment:
