@@ -63,6 +63,11 @@ interface StoreState {
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   loadData: () => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<boolean>;
 
   // conversations
   selectConversation: (id: string | null) => void;
@@ -231,6 +236,30 @@ export const useStore = create<StoreState>((set, get) => ({
       });
     } catch (err: any) {
       console.error("Failed to load data:", err.message);
+    }
+  },
+
+  updateProfile: async (data) => {
+    try {
+      const user = toUser(await api.updateMe(data));
+      set((state) => ({
+        currentUser: user,
+        users: state.users.map((u) => (u.id === user.id ? user : u)),
+      }));
+      return;
+    } catch (err: any) {
+      console.error("Profile update failed:", err.message);
+      throw err;
+    }
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      return true;
+    } catch (err: any) {
+      console.error("Password change failed:", err.message);
+      return false;
     }
   },
 

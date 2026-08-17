@@ -77,7 +77,79 @@ router.post("/logout", (_req, res) => {
 });
 
 router.get("/me", authenticate, async (req: AuthRequest, res) => {
-  res.json(req.user);
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      avatar: true,
+      timezone: true,
+      status: true,
+    },
+  });
+  res.json(user);
 });
+
+router.patch(
+  "/me",
+  authenticate,
+  body("email").optional().isEmail(),
+  async (req: AuthRequest, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+    const { name, email, avatar, timezone } = req.body;
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { name, email, avatar, timezone },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        avatar: true,
+        timezone: true,
+        status: true,
+      },
+    });
+    res.json(user);
+  },
+);
+
+router.post(
+  "/change-password",
+  authenticate,
+  body("newPassword").isLength({ min: 6 }),
+  async (req: AuthRequest, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+    const { currentPassword, newPassword } = req.body;
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+    });
+    if (!user || !user.password) {
+      res.status(400).json({ error: "Password change not available" });
+      return;
+    }
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hash },
+    });
+    res.json({ ok: true });
+  },
+);
 
 export default router;

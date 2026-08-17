@@ -327,6 +327,14 @@ export const api = {
     return this.get("/auth/me");
   },
 
+  async updateMe(data: Partial<ApiUser>) {
+    return this.patch("/auth/me", data);
+  },
+
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.post("/auth/change-password", { currentPassword, newPassword });
+  },
+
   async logout() {
     return this.post("/auth/logout");
   },

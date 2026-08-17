@@ -122,7 +122,7 @@ export default function KnowledgeBasePage() {
         >
           {active ? (
             <div
-              className="max-w-3xl mx-auto rounded-xl p-6"
+              className="w-full rounded-xl p-6"
               style={{
                 backgroundColor: t.card,
                 border: `1px solid ${t.cardBorder}`,

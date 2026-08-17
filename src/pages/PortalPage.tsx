@@ -29,7 +29,7 @@ export default function PortalPage() {
         className="h-full overflow-y-auto"
         style={{ backgroundColor: t.readMain }}
       >
-        <div className="max-w-4xl mx-auto p-6">
+        <div className="w-full p-6">
           {active ? (
             <div
               className="rounded-xl p-6"

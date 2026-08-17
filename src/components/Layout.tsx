@@ -266,7 +266,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </button>
 
         <div className="flex items-center gap-3">
-          {currentUser && <Avatar name={currentUser.name} size="md" />}
+          {currentUser && (
+            <Avatar
+              name={currentUser.name}
+              src={currentUser.avatar}
+              size="md"
+            />
+          )}
           <div className="flex-1 min-w-0">
             <p
               className="text-sm font-semibold truncate"
@@ -285,7 +291,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden"
+      className="flex h-screen w-full min-h-screen overflow-hidden"
       style={{ backgroundColor: t.appBg }}
     >
       <div className="hidden md:flex h-full">{sidebar}</div>
@@ -435,7 +441,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg transition-colors"
                 style={{ color: t.textSub }}
               >
-                {currentUser && <Avatar name={currentUser.name} size="sm" />}
+                {currentUser && (
+                  <Avatar
+                    name={currentUser.name}
+                    src={currentUser.avatar}
+                    size="sm"
+                  />
+                )}
                 <ChevronDown
                   className="w-3.5 h-3.5"
                   style={{ color: t.textFaint }}

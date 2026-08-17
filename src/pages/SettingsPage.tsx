@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
+import ProfileSection from "../components/ProfileSection";
 import { useTheme } from "../theme";
 import { useStore } from "../store";
 import { api } from "../lib/api";
@@ -76,6 +77,10 @@ export default function SettingsPage() {
         <h1 className="text-xl font-semibold mb-6" style={{ color: t.text }}>
           Settings
         </h1>
+
+        <div className="space-y-6 mb-6">
+          <ProfileSection />
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">

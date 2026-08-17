@@ -4,6 +4,7 @@ type Size = "sm" | "md" | "lg" | "xl";
 
 interface AvatarProps {
   name: string;
+  src?: string;
   size?: Size;
   color?: string;
   className?: string;
@@ -34,6 +35,7 @@ function stringColor(str: string) {
 
 export default function Avatar({
   name,
+  src,
   size = "md",
   color,
   className = "",
@@ -42,14 +44,18 @@ export default function Avatar({
   const c = color || stringColor(name);
   return (
     <div
-      className={`${sizeClass[size]} rounded-full flex items-center justify-center font-semibold flex-shrink-0 ${className}`}
+      className={`${sizeClass[size]} rounded-full overflow-hidden flex items-center justify-center font-semibold flex-shrink-0 ${className}`}
       style={{
         backgroundColor: `${c}30`,
         color: c,
         border: `1px solid ${c}50`,
       }}
     >
-      {initials}
+      {src ? (
+        <img src={src} alt={name} className="w-full h-full object-cover" />
+      ) : (
+        initials
+      )}
     </div>
   );
 }
