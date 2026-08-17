@@ -159,6 +159,7 @@ export interface ApiBrand {
   logoUrl?: string | null;
   faviconUrl?: string | null;
   darkModeDefault?: boolean;
+  modules?: Record<string, boolean> | null;
 }
 
 export function getInitials(name: string) {

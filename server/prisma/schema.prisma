@@ -358,5 +358,6 @@ model BrandSettings {
   darkModeDefault Boolean @default(true)
   customCss       String?
   portalTitle     String?
+  modules         Json?
   updatedAt       DateTime @updatedAt
 }

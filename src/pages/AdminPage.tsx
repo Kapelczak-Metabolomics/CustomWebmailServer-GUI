@@ -12,6 +12,7 @@ import {
   Check,
   Package,
   Palette,
+  Save,
 } from "lucide-react";
 
 const MODULES = [
@@ -164,6 +165,11 @@ export default function AdminPage() {
       setBrandForm({
         companyName: brand.companyName || "",
         primaryColor: brand.primaryColor || "#2896E8",
+      });
+      const saved = brand.modules || {};
+      setEnabledModules({
+        ...Object.fromEntries(MODULES.map((m) => [m, false])),
+        ...saved,
       });
     }
   }, [brand]);
@@ -397,12 +403,21 @@ export default function AdminPage() {
               border: `1px solid ${t.cardBorder}`,
             }}
           >
-            <h3
-              className="text-sm font-semibold mb-4"
-              style={{ color: t.text }}
-            >
-              FreeScout MegaPlan modules ({MODULES.length})
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold" style={{ color: t.text }}>
+                FreeScout MegaPlan modules ({MODULES.length})
+              </h3>
+              <button
+                onClick={async () => {
+                  await api.updateBrand({ modules: enabledModules });
+                  await refreshBrand();
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                style={{ background: t.accentGrad }}
+              >
+                <Save className="w-3.5 h-3.5" /> Save modules
+              </button>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {MODULES.map((mod) => (
                 <button
