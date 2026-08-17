@@ -4,12 +4,12 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: isotopiq-mail
-    # Easypanel proxies to container port 8080 via a Domain; no host port binding needed
+    # Easypanel proxies to container port 8097 via a Domain; no host port binding needed
     expose:
-      - "8080"
+      - "8097"
     environment:
       - NODE_ENV=production
-      - PORT=8080
+      - PORT=8097
       - APP_HOST=${APP_HOST:-0.0.0.0}
       - CLIENT_URL=${CLIENT_URL}
       - DATABASE_URL=${DATABASE_URL}
@@ -34,7 +34,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test:
-        ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/health"]
+        ["CMD", "wget", "--spider", "-q", "http://localhost:8097/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
