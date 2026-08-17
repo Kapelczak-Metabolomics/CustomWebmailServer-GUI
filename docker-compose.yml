@@ -4,15 +4,13 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: isotopiq-mail
-    # Easypanel proxies to container port 3000 via a Domain; no host port binding needed
+    # Easypanel proxies to container port 8080 via a Domain; no host port binding needed
     expose:
-      - "3000"
-    env_file:
-      - .env
+      - "8080"
     environment:
       - NODE_ENV=production
-      - PORT=3000
-      - APP_HOST=${APP_HOST:-localhost}
+      - PORT=8080
+      - APP_HOST=${APP_HOST:-0.0.0.0}
       - CLIENT_URL=${CLIENT_URL}
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
@@ -36,7 +34,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test:
-        ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+        ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3

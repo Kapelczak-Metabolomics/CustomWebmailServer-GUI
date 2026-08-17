@@ -3,20 +3,27 @@ import dotenv from "dotenv";
 dotenv.config();
 
 function requireEnv(key: string, fallback?: string): string {
-  const value = process.env[key] ?? fallback;
-  if (value === undefined) {
+  const value = process.env[key]?.trim() ?? fallback;
+  if (!value) {
     throw new Error(`Missing required env var: ${key}`);
   }
   return value;
 }
 
+function optionalList(key: string, fallback: string[]): string[] {
+  const raw = process.env[key]?.trim();
+  if (!raw) return fallback;
+  return raw
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean);
+}
+
 export const config = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: parseInt(process.env.PORT ?? "3000"),
-  appHost: process.env.APP_HOST ?? "localhost",
-  clientUrl: process.env.CLIENT_URL?.split(",").map((u) => u.trim()) ?? [
-    "http://localhost:8443",
-  ],
+  appHost: process.env.APP_HOST?.trim() || "0.0.0.0",
+  clientUrl: optionalList("CLIENT_URL", ["http://localhost:8443"]),
   databaseUrl: requireEnv("DATABASE_URL"),
   redisUrl: requireEnv("REDIS_URL"),
   jwtSecret: requireEnv("JWT_SECRET"),
