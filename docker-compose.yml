@@ -1,22 +1,48 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: isotopiq-mail-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mail
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: isotopiq-mail-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: isotopiq-mail
-    # Easypanel proxies to container port 8097 via a Domain; no host port binding needed
-    expose:
-      - "8097"
+    # Expose the app on host port 8097; Easypanel can also proxy to this container port
+    ports:
+      - "8097:8097"
     environment:
       - NODE_ENV=production
       - PORT=8097
-      - APP_HOST=${APP_HOST:-0.0.0.0}
+      - APP_HOST=0.0.0.0
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mail?schema=public
+      - REDIS_URL=redis://redis:6379
       - CLIENT_URL=${CLIENT_URL}
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRY=${JWT_EXPIRY:-7d}
-      - EMAIL_DEFAULT_FROM=${EMAIL_DEFAULT_FROM}
+      - EMAIL_DEFAULT_FROM=${EMAIL_DEFAULT_FROM:-noreply@isotopiq.local}
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER}
@@ -31,6 +57,13 @@ services:
       - TURN_SECRET=${TURN_SECRET}
       - TURN_REALM=${TURN_REALM:-isotopiq.local}
       - TURN_TTL=${TURN_TTL:-86400}
+    volumes:
+      - appdata:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test:
@@ -38,4 +71,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
+
+volumes:
+  pgdata:
+  appdata:
