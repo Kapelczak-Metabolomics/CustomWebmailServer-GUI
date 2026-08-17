@@ -1,4 +1,5 @@
 import { Router } from "express";
+import bcrypt from "bcrypt";
 import {
   authenticate,
   requireRole,
@@ -25,6 +26,37 @@ router.get("/", requireRole("admin", "agent"), async (_req, res) => {
     orderBy: { name: "asc" as const },
   });
   res.json(users);
+});
+
+router.post("/", requireRole("admin"), async (req: AuthRequest, res) => {
+  const { name, email, role, timezone, status, password } = req.body;
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    res.status(409).json({ error: "Email already in use" });
+    return;
+  }
+  const hash = password ? await bcrypt.hash(password, 10) : null;
+  const user = await prisma.user.create({
+    data: {
+      name,
+      email,
+      role,
+      password: hash,
+      timezone: timezone || "UTC",
+      status: status || "active",
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      timezone: true,
+      status: true,
+      avatar: true,
+      createdAt: true,
+    },
+  });
+  res.status(201).json(user);
 });
 
 router.get("/:id", async (req: AuthRequest, res) => {

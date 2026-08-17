@@ -231,7 +231,7 @@ export default function ChatPage() {
                       {msg.user.name}
                     </div>
                     <div
-                      className="max-w-[70%] px-3 py-2 rounded-xl text-sm"
+                      className="max-w-full px-3 py-2 rounded-xl text-sm"
                       style={{
                         backgroundColor:
                           msg.user.id === currentUser?.id

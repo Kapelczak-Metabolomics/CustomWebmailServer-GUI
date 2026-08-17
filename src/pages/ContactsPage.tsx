@@ -55,9 +55,9 @@ export default function ContactsPage() {
     setSelected(c.id);
   }
 
-  function handleAddNote() {
+  async function handleAddNote() {
     if (!selected || !note.trim() || !currentUser) return;
-    addNote(selected, note, currentUser.id);
+    await addNote(selected, note, currentUser.id);
     setNote("");
   }
 
@@ -271,6 +271,9 @@ export default function ContactsPage() {
                     <input
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAddNote();
+                      }}
                       placeholder="Add a note..."
                       className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
                       style={{

@@ -25,7 +25,6 @@ export default function ConversationList() {
   const tags = useStore((s) => s.tags);
   const selectedId = useStore((s) => s.ui.selectedId);
   const selectConversation = useStore((s) => s.selectConversation);
-  const markRead = useStore((s) => s.markRead);
   const toggleStar = useStore((s) => s.toggleStar);
   const folder = useStore((s) => s.ui.folder);
 
@@ -75,7 +74,6 @@ export default function ConversationList() {
 
   function handleSelect(id: string) {
     selectConversation(id);
-    if (currentUser) markRead(id, currentUser.id);
   }
 
   return (

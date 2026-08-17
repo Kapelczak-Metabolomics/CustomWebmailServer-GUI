@@ -25,9 +25,13 @@ export default function KnowledgeBasePage() {
   );
   const cats = Array.from(new Set(articles.map((a) => a.category)));
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!form.title.trim() || !form.body.trim()) return;
-    addArticle({ title: form.title, category: form.category, body: form.body });
+    await addArticle({
+      title: form.title,
+      category: form.category,
+      body: form.body,
+    });
     setForm({ title: "", category: "General", body: "" });
     setShowAdd(false);
   }

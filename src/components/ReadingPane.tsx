@@ -157,18 +157,14 @@ export default function ReadingPane() {
     setPendingAttachments([]);
   }
 
-  function handleTagSelect(name: string) {
+  async function handleTagSelect(name: string) {
     const existing = tags.find(
       (t) => t.name.toLowerCase() === name.toLowerCase(),
     );
-    if (existing) addTagToConversation(conv.id, existing.id);
+    if (existing) await addTagToConversation(conv.id, existing.id);
     else {
-      // create tag via store not directly available for new tag then add
-      useStore.getState().createTag(name, "#6B7A96");
-      const created = useStore
-        .getState()
-        .tags.find((t) => t.name.toLowerCase() === name.toLowerCase());
-      if (created) addTagToConversation(conv.id, created.id);
+      const tag = await useStore.getState().createTag(name, "#6B7A96");
+      if (tag) await addTagToConversation(conv.id, tag.id);
     }
     setShowTagMenu(false);
     setNewTagInput("");
@@ -190,9 +186,9 @@ export default function ReadingPane() {
           />
         </div>
         <div
-          className={`max-w-[80%] ${
+          className={`flex-1 min-w-0 flex flex-col ${
             isMe ? "items-end" : "items-start"
-          } flex flex-col`}
+          }`}
         >
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold" style={{ color: t.text }}>
@@ -210,39 +206,41 @@ export default function ReadingPane() {
               </span>
             )}
           </div>
-          <div
-            className="text-sm leading-relaxed px-4 py-3 rounded-2xl"
-            style={{
-              backgroundColor: isMe
-                ? t.accent
-                : isNote
-                  ? "#F59E0B11"
-                  : t.readMain,
-              color: isMe ? "#fff" : t.text,
-              border: `1px solid ${
-                isMe ? t.accent : isNote ? "#F59E0B44" : t.divider
-              }`,
-            }}
-            dangerouslySetInnerHTML={{ __html: msg.body }}
-          />
-          {msg.attachments.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {msg.attachments.map((a) => (
-                <a
-                  key={a.id}
-                  href={a.url}
-                  download
-                  className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg"
-                  style={{ backgroundColor: t.inputBg, color: t.textSub }}
-                >
-                  <Paperclip className="w-3 h-3" /> {a.name}{" "}
-                  <span style={{ color: t.textMuted }}>
-                    ({formatBytes(a.size)})
-                  </span>
-                </a>
-              ))}
-            </div>
-          )}
+          <div className="w-fit max-w-full">
+            <div
+              className="text-sm leading-relaxed px-4 py-3 rounded-2xl"
+              style={{
+                backgroundColor: isMe
+                  ? t.accent
+                  : isNote
+                    ? "#F59E0B11"
+                    : t.readMain,
+                color: isMe ? "#fff" : t.text,
+                border: `1px solid ${
+                  isMe ? t.accent : isNote ? "#F59E0B44" : t.divider
+                }`,
+              }}
+              dangerouslySetInnerHTML={{ __html: msg.body }}
+            />
+            {msg.attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {msg.attachments.map((a) => (
+                  <a
+                    key={a.id}
+                    href={a.url}
+                    download
+                    className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg"
+                    style={{ backgroundColor: t.inputBg, color: t.textSub }}
+                  >
+                    <Paperclip className="w-3 h-3" /> {a.name}{" "}
+                    <span style={{ color: t.textMuted }}>
+                      ({formatBytes(a.size)})
+                    </span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );

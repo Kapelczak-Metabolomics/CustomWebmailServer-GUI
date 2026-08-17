@@ -83,8 +83,14 @@ interface StoreState {
   ) => Promise<void>;
   setPriority: (conversationId: string, priority: Priority) => Promise<void>;
   assign: (conversationId: string, userId: string | undefined) => Promise<void>;
-  addTagToConversation: (conversationId: string, tagId: string) => void;
-  removeTagFromConversation: (conversationId: string, tagId: string) => void;
+  addTagToConversation: (
+    conversationId: string,
+    tagId: string,
+  ) => Promise<void>;
+  removeTagFromConversation: (
+    conversationId: string,
+    tagId: string,
+  ) => Promise<void>;
   addLabel: (conversationId: string, label: string) => void;
   removeLabel: (conversationId: string, label: string) => void;
   sendMessage: (
@@ -113,7 +119,7 @@ interface StoreState {
       email: string;
     },
   ) => Promise<Contact>;
-  addNote: (contactId: string, body: string, authorId: string) => void;
+  addNote: (contactId: string, body: string, authorId: string) => Promise<void>;
 
   // settings
   updateSettings: (settings: Partial<AppSettings>) => void;
@@ -123,34 +129,35 @@ interface StoreState {
       email: string;
     },
   ) => Promise<Mailbox>;
-  createTag: (name: string, color: string) => Tag;
+  createTag: (name: string, color: string) => Promise<Tag>;
   addSavedReply: (
     data: Partial<SavedReply> & {
       name: string;
       body: string;
     },
-  ) => SavedReply;
+  ) => Promise<SavedReply>;
   addUser: (
     data: Partial<User> & {
       name: string;
       email: string;
       role: Role;
+      password?: string;
     },
-  ) => User;
+  ) => Promise<User>;
   addWorkflow: (
     data: Partial<Workflow> & {
       name: string;
       conditions: string;
       actions: string;
     },
-  ) => Workflow;
+  ) => Promise<Workflow>;
   addArticle: (
     data: Partial<KnowledgeBaseArticle> & {
       title: string;
       body: string;
       category: string;
     },
-  ) => KnowledgeBaseArticle;
+  ) => Promise<KnowledgeBaseArticle>;
 
   // notifications
   addNotification: (title: string, body: string) => void;
@@ -221,11 +228,24 @@ export const useStore = create<StoreState>((set, get) => ({
 
   loadData: async () => {
     try {
-      const [users, mailboxes, contacts, convs] = await Promise.all([
+      const [
+        users,
+        mailboxes,
+        contacts,
+        convs,
+        tags,
+        savedReplies,
+        workflows,
+        articles,
+      ] = await Promise.all([
         api.listUsers(),
         api.listMailboxes(),
         api.listContacts(),
         api.listConversations({ limit: "100" }),
+        api.listTags(),
+        api.listSavedReplies(),
+        api.listWorkflows(),
+        api.listArticles(),
       ]);
       set({
         users,
@@ -233,6 +253,10 @@ export const useStore = create<StoreState>((set, get) => ({
         contacts,
         conversations: convs.items,
         messages: convs.messages,
+        tags,
+        savedReplies,
+        workflows,
+        articles,
       });
     } catch (err: any) {
       console.error("Failed to load data:", err.message);
@@ -331,26 +355,19 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   markRead: (conversationId, userId) => {
+    const conversation = get().conversations.find(
+      (c) => c.id === conversationId,
+    );
+    if (!conversation || conversation.readBy.includes(userId)) return;
+    const readBy = [...new Set([...conversation.readBy, userId])];
     set((state) => ({
       conversations: state.conversations.map((c) =>
-        c.id === conversationId && !c.readBy.includes(userId)
-          ? {
-              ...c,
-              readBy: [...c.readBy, userId],
-              updatedAt: new Date().toISOString(),
-            }
+        c.id === conversationId
+          ? { ...c, readBy, updatedAt: new Date().toISOString() }
           : c,
       ),
     }));
-    api
-      .updateConversation(conversationId, {
-        readBy: [
-          ...(get().conversations.find((c) => c.id === conversationId)
-            ?.readBy || []),
-          userId,
-        ],
-      })
-      .catch(() => {});
+    api.updateConversation(conversationId, { readBy }).catch(() => {});
   },
 
   setStatus: async (conversationId, status) => {
@@ -393,43 +410,43 @@ export const useStore = create<StoreState>((set, get) => ({
     await api.updateConversation(conversationId, { assigneeId: userId });
   },
 
-  addTagToConversation: (conversationId, tagId) =>
-    set((state) => {
-      const tag = state.tags.find((t) => t.id === tagId || t.name === tagId);
-      const label = tag ? tag.name : tagId;
-      return {
-        conversations: state.conversations.map((c) =>
-          c.id === conversationId && !c.tags.includes(label)
-            ? {
-                ...c,
-                tags: [...c.tags, label],
-                labels: c.labels.includes(label)
-                  ? c.labels
-                  : [...c.labels, label],
-                updatedAt: new Date().toISOString(),
-              }
-            : c,
-        ),
-      };
-    }),
+  addTagToConversation: async (conversationId, tagId) => {
+    await api.addTagToConversation(conversationId, tagId);
+    const tag = get().tags.find((t) => t.id === tagId);
+    const label = tag ? tag.name : tagId;
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId && !c.tags.includes(label)
+          ? {
+              ...c,
+              tags: [...c.tags, label],
+              labels: c.labels.includes(label)
+                ? c.labels
+                : [...c.labels, label],
+              updatedAt: new Date().toISOString(),
+            }
+          : c,
+      ),
+    }));
+  },
 
-  removeTagFromConversation: (conversationId, tagId) =>
-    set((state) => {
-      const tag = state.tags.find((t) => t.id === tagId || t.name === tagId);
-      const label = tag ? tag.name : tagId;
-      return {
-        conversations: state.conversations.map((c) =>
-          c.id === conversationId
-            ? {
-                ...c,
-                tags: c.tags.filter((t) => t !== label),
-                labels: c.labels.filter((l) => l !== label),
-                updatedAt: new Date().toISOString(),
-              }
-            : c,
-        ),
-      };
-    }),
+  removeTagFromConversation: async (conversationId, tagId) => {
+    await api.removeTagFromConversation(conversationId, tagId);
+    const tag = get().tags.find((t) => t.id === tagId);
+    const label = tag ? tag.name : tagId;
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId
+          ? {
+              ...c,
+              tags: c.tags.filter((t) => t !== label),
+              labels: c.labels.filter((l) => l !== label),
+              updatedAt: new Date().toISOString(),
+            }
+          : c,
+      ),
+    }));
+  },
 
   addLabel: (conversationId, label) =>
     set((state) => ({
@@ -516,12 +533,13 @@ export const useStore = create<StoreState>((set, get) => ({
     return contact;
   },
 
-  addNote: (contactId, body, authorId) => {
+  addNote: async (contactId, body, authorId) => {
+    const saved = await api.createContactNote(contactId, body, authorId);
     const note: Note = {
-      id: `note-${Date.now()}`,
-      authorId,
-      body,
-      createdAt: new Date().toISOString(),
+      id: saved.id,
+      authorId: saved.authorId,
+      body: saved.body,
+      createdAt: saved.createdAt,
     };
     set((state) => ({
       contacts: state.contacts.map((c) =>
@@ -543,67 +561,54 @@ export const useStore = create<StoreState>((set, get) => ({
     return mailbox;
   },
 
-  createTag: (name, color) => {
-    const tag: Tag = { id: `t-${Date.now()}`, name, color };
+  createTag: async (name, color) => {
+    const tag = await api.createTag(name, color);
     set((state) => ({ tags: [...state.tags, tag] }));
     return tag;
   },
 
-  addSavedReply: (data) => {
-    const reply: SavedReply = {
-      id: `sr-${Date.now()}`,
+  addSavedReply: async (data) => {
+    const reply = await api.createSavedReply({
       name: data.name,
       subject: data.subject || "",
       body: data.body,
       mailboxId: data.mailboxId,
-    };
+    });
     set((state) => ({ savedReplies: [...state.savedReplies, reply] }));
     return reply;
   },
 
-  addUser: (data) => {
-    const user: User = {
-      id: `u-${Date.now()}`,
+  addUser: async (data) => {
+    const user = await api.createUser({
       name: data.name,
       email: data.email,
       role: data.role,
+      password: (data as any).password,
       avatar: data.avatar,
       timezone: data.timezone || "UTC",
-      status: "active",
-      permissions: data.permissions || [],
-      initials: getInitials(data.name),
-    };
+    });
     set((state) => ({ users: [...state.users, user] }));
     return user;
   },
 
-  addWorkflow: (data) => {
-    const workflow: Workflow = {
-      id: `wf-${Date.now()}`,
+  addWorkflow: async (data) => {
+    const workflow = await api.createWorkflow({
       name: data.name,
       active: data.active ?? true,
       conditions: data.conditions,
       actions: data.actions,
-    };
+    });
     set((state) => ({ workflows: [...state.workflows, workflow] }));
     return workflow;
   },
 
-  addArticle: (data) => {
-    const slug = data.title
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "");
-    const article: KnowledgeBaseArticle = {
-      id: `kb-${Date.now()}`,
+  addArticle: async (data) => {
+    const article = await api.createArticle({
       title: data.title,
-      slug,
       category: data.category,
       body: data.body,
       published: data.published ?? true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    });
     set((state) => ({ articles: [...state.articles, article] }));
     return article;
   },

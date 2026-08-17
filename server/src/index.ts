@@ -22,6 +22,10 @@ import attachmentRoutes from "./routes/attachments.js";
 import chatRoutes from "./routes/chat.js";
 import videoRoutes from "./routes/video.js";
 import brandRoutes from "./routes/brand.js";
+import tagRoutes from "./routes/tags.js";
+import savedReplyRoutes from "./routes/savedReplies.js";
+import workflowRoutes from "./routes/workflows.js";
+import articleRoutes from "./routes/articles.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -64,6 +68,10 @@ app.use("/api/attachments", attachmentRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/video", videoRoutes);
 app.use("/api/brand", brandRoutes);
+app.use("/api/tags", tagRoutes);
+app.use("/api/saved-replies", savedReplyRoutes);
+app.use("/api/workflows", workflowRoutes);
+app.use("/api/articles", articleRoutes);
 
 // Serve React SPA from built client
 const publicDir = path.resolve(process.cwd(), "public");

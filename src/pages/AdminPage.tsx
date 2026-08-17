@@ -112,6 +112,7 @@ export default function AdminPage() {
     name: "",
     email: "",
     role: "agent" as any,
+    password: "",
   });
   const [mbForm, setMbForm] = useState({
     name: "",
@@ -131,27 +132,32 @@ export default function AdminPage() {
   const [faviconFile, setFaviconFile] = useState<File | null>(null);
   const [brandLoading, setBrandLoading] = useState(false);
 
-  function submitUser() {
-    if (!userForm.name || !userForm.email) return;
-    addUser({
+  async function submitUser() {
+    if (!userForm.name || !userForm.email || !userForm.password) return;
+    await addUser({
       name: userForm.name,
       email: userForm.email,
       role: userForm.role,
+      password: userForm.password,
     });
-    setUserForm({ name: "", email: "", role: "agent" });
+    setUserForm({ name: "", email: "", role: "agent", password: "" });
     setShowAddUser(false);
   }
 
-  function submitMailbox() {
+  async function submitMailbox() {
     if (!mbForm.name || !mbForm.email) return;
-    addMailbox({ name: mbForm.name, email: mbForm.email, color: mbForm.color });
+    await addMailbox({
+      name: mbForm.name,
+      email: mbForm.email,
+      color: mbForm.color,
+    });
     setMbForm({ name: "", email: "", color: "#2896E8" });
     setShowAddMailbox(false);
   }
 
-  function submitWorkflow() {
+  async function submitWorkflow() {
     if (!wfForm.name || !wfForm.conditions || !wfForm.actions) return;
-    addWorkflow({
+    await addWorkflow({
       name: wfForm.name,
       conditions: wfForm.conditions,
       actions: wfForm.actions,
@@ -616,6 +622,20 @@ export default function AdminPage() {
                 setUserForm({ ...userForm, email: e.target.value })
               }
               placeholder="Email"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <input
+              type="password"
+              value={userForm.password}
+              onChange={(e) =>
+                setUserForm({ ...userForm, password: e.target.value })
+              }
+              placeholder="Password"
               className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
               style={{
                 backgroundColor: t.inputBg,

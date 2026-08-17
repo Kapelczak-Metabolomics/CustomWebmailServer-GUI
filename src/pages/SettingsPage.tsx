@@ -52,9 +52,9 @@ export default function SettingsPage() {
     await refreshBrand();
   }
 
-  function addTag() {
+  async function addTag() {
     if (!newTag.trim()) return;
-    createTag(
+    await createTag(
       newTag.trim(),
       "#" +
         Math.floor(Math.random() * 16777215)
@@ -64,9 +64,9 @@ export default function SettingsPage() {
     setNewTag("");
   }
 
-  function addReply() {
+  async function addReply() {
     if (!newReply.name.trim() || !newReply.body.trim()) return;
-    addSavedReply({ name: newReply.name, body: newReply.body });
+    await addSavedReply({ name: newReply.name, body: newReply.body });
     setNewReply({ name: "", body: "" });
     setShowReply(false);
   }

@@ -29,8 +29,8 @@ export interface ApiConversation {
   mailbox: ApiMailbox;
   contact: ApiContact;
   assignee?: ApiUser | null;
-  labels: ApiLabel[];
-  tags: ApiTag[];
+  labels: ApiConversationLabel[];
+  tags: ApiConversationTag[];
   followers: ApiFollower[];
   messages?: ApiMessage[];
 }
@@ -71,13 +71,22 @@ export interface ApiUser {
   createdAt?: string;
 }
 
+export interface ApiContactNote {
+  id: string;
+  contactId: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface ApiContact {
   id: string;
   name: string;
   email: string;
   company?: string;
   phone?: string;
-  notes?: string;
+  notes?: ApiContactNote[];
   createdAt: string;
   updatedAt?: string;
   customFieldValues?: ApiCustomFieldValue[];
@@ -103,15 +112,15 @@ export interface ApiMailbox {
   createdAt?: string;
 }
 
-export interface ApiLabel {
-  label: ApiNamedItem;
+export interface ApiConversationLabel {
+  label: ApiTag;
+}
+
+export interface ApiConversationTag {
+  tag: ApiTag;
 }
 
 export interface ApiTag {
-  tag: ApiNamedItem;
-}
-
-export interface ApiNamedItem {
   id: string;
   name: string;
   color: string;
@@ -209,16 +218,12 @@ export function toContact(c: ApiContact): Contact {
     phone: c.phone,
     createdAt: c.createdAt,
     customFields,
-    notes: c.notes
-      ? [
-          {
-            id: `note-${c.id}`,
-            authorId: "system",
-            body: c.notes,
-            createdAt: c.createdAt,
-          },
-        ]
-      : [],
+    notes: (c.notes || []).map((n) => ({
+      id: n.id,
+      authorId: n.authorId,
+      body: n.body,
+      createdAt: n.createdAt,
+    })),
   };
 }
 
@@ -289,7 +294,7 @@ export function toConversation(c: ApiConversation): Conversation {
     source: c.source as any,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
-    readBy: c.readBy || [],
+    readBy: [...new Set(c.readBy || [])],
     collision: c.collision || [],
   };
 }
@@ -448,5 +453,67 @@ export const api = {
 
   async getTurnCredentials() {
     return this.get("/video/turn");
+  },
+
+  async listTags() {
+    return this.get("/tags") as Promise<ApiTag[]>;
+  },
+
+  async createTag(name: string, color: string) {
+    return this.post("/tags", { name, color }) as Promise<ApiTag>;
+  },
+
+  async deleteTag(id: string) {
+    return this.del(`/tags/${id}`);
+  },
+
+  async listSavedReplies() {
+    return this.get("/saved-replies") as Promise<SavedReply[]>;
+  },
+
+  async createSavedReply(data: Partial<SavedReply>) {
+    return this.post("/saved-replies", data) as Promise<SavedReply>;
+  },
+
+  async listWorkflows() {
+    return this.get("/workflows") as Promise<Workflow[]>;
+  },
+
+  async createWorkflow(data: Partial<Workflow>) {
+    return this.post("/workflows", data) as Promise<Workflow>;
+  },
+
+  async listArticles() {
+    return this.get("/articles") as Promise<KnowledgeBaseArticle[]>;
+  },
+
+  async createArticle(data: Partial<KnowledgeBaseArticle>) {
+    return this.post("/articles", data) as Promise<KnowledgeBaseArticle>;
+  },
+
+  async createUser(data: Partial<User> & { password?: string }) {
+    return toUser(await this.post("/users", data));
+  },
+
+  async listContactNotes(contactId: string) {
+    return this.get(`/contacts/${contactId}/notes`) as Promise<
+      ApiContactNote[]
+    >;
+  },
+
+  async createContactNote(contactId: string, body: string, authorId: string) {
+    return this.post(`/contacts/${contactId}/notes`, { body, authorId });
+  },
+
+  async addTagToConversation(conversationId: string, tagId: string) {
+    return this.post(`/conversations/${conversationId}/tags`, { tagId });
+  },
+
+  async removeTagFromConversation(conversationId: string, tagId: string) {
+    return this.del(`/conversations/${conversationId}/tags/${tagId}`);
+  },
+
+  async listVideoRooms() {
+    return this.get("/video/rooms");
   },
 };

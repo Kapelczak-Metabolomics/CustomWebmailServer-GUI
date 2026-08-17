@@ -33,6 +33,11 @@ export default function VideoPage() {
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
+  const turnRef = useRef<{
+    urls: string[];
+    username: string;
+    credential: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -111,9 +116,19 @@ export default function VideoPage() {
   }, [currentUser, activeRoom]);
 
   function createPeer(userId: string) {
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+    const iceServers: RTCIceServer[] = [
+      { urls: "stun:stun.l.google.com:19302" },
+    ];
+    if (turnRef.current) {
+      turnRef.current.urls.forEach((url) => {
+        iceServers.push({
+          urls: url,
+          username: turnRef.current?.username,
+          credential: turnRef.current?.credential,
+        });
+      });
+    }
+    const pc = new RTCPeerConnection({ iceServers });
     localStreamRef.current
       ?.getTracks()
       .forEach((track) => pc.addTrack(track, localStreamRef.current!));
@@ -159,7 +174,7 @@ export default function VideoPage() {
 
       const turn = await api.getTurnCredentials().catch(() => null);
       if (turn) {
-        // TURN credentials are fetched; STUN still used. Mesh peers will be created on user-joined events.
+        turnRef.current = turn;
       }
 
       socketRef.current?.emit("join-room", room.id);
@@ -173,6 +188,7 @@ export default function VideoPage() {
   async function createRoom() {
     if (!roomId.trim()) return;
     const room = (await api.createVideoRoom(roomId)) as VideoRoom;
+    if (room && !room.members) room.members = [];
     setRooms((prev) => [...prev, room]);
     join(room);
   }
@@ -188,7 +204,10 @@ export default function VideoPage() {
   }
 
   useEffect(() => {
-    api.get(`/video/rooms`).catch(() => null);
+    api
+      .listVideoRooms()
+      .then((data: any) => setRooms((data as VideoRoom[]) || []))
+      .catch(() => null);
   }, []);
 
   return (

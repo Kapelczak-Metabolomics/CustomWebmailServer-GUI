@@ -149,7 +149,7 @@ router.patch("/:id", async (req: AuthRequest, res) => {
       folder,
       assigneeId,
       snoozeUntil: snoozeUntil ? new Date(snoozeUntil) : undefined,
-      readBy: readBy ? { set: readBy } : undefined,
+      readBy: readBy ? { set: Array.from(new Set(readBy)) } : undefined,
     },
     include: includeFull,
   });
@@ -200,6 +200,39 @@ router.post("/:id/snooze", async (req, res) => {
   const conv = await prisma.conversation.update({
     where: { id },
     data: { snoozeUntil: new Date(until) },
+  });
+  res.json(conv);
+});
+
+// Tags
+router.post("/:id/tags", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const { tagId } = req.body;
+  await prisma.conversationTag.upsert({
+    where: {
+      conversationId_tagId: { conversationId: id, tagId },
+    },
+    create: { conversationId: id, tagId },
+    update: {},
+  });
+  const conv = await prisma.conversation.findUnique({
+    where: { id },
+    include: includeFull,
+  });
+  res.json(conv);
+});
+
+router.delete("/:id/tags/:tagId", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const tagId = req.params.tagId as string;
+  await prisma.conversationTag.delete({
+    where: {
+      conversationId_tagId: { conversationId: id, tagId },
+    },
+  });
+  const conv = await prisma.conversation.findUnique({
+    where: { id },
+    include: includeFull,
   });
   res.json(conv);
 });

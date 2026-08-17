@@ -38,8 +38,13 @@ export default defineConfig(({ mode }) => {
       watch: { ignored: ["**/.figma/**"] },
       proxy: {
         "/api": {
-          target: process.env.VITE_API_PROXY || "http://localhost:4000",
+          target: process.env.VITE_API_PROXY || "http://localhost:3000",
           changeOrigin: true,
+        },
+        "/socket.io": {
+          target: process.env.VITE_API_PROXY || "http://localhost:3000",
+          changeOrigin: true,
+          ws: true,
         },
       },
     },
