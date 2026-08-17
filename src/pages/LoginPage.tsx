@@ -4,7 +4,7 @@ import { useStore } from "../store";
 import { useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
-  const { tokens: t, appName } = useTheme();
+  const { tokens: t, appName, logoUrl } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -37,12 +37,20 @@ export default function LoginPage() {
         }}
       >
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold"
-            style={{ background: t.accentGrad }}
-          >
-            I
-          </div>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={appName}
+              className="h-10 w-auto rounded-lg object-contain"
+            />
+          ) : (
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold"
+              style={{ background: t.accentGrad }}
+            >
+              I
+            </div>
+          )}
           <span className="text-xl font-semibold" style={{ color: t.text }}>
             {appName}
           </span>
@@ -112,23 +120,6 @@ export default function LoginPage() {
         >
           {loading ? "Signing in..." : "Continue"}
         </button>
-
-        <div
-          className="mt-6 text-center text-xs"
-          style={{ color: t.textMuted }}
-        >
-          Demo accounts:
-          <br />
-          <span className="font-mono" style={{ color: t.textSub }}>
-            admin@example.com
-          </span>
-          ,{" "}
-          <span className="font-mono" style={{ color: t.textSub }}>
-            agent@example.com
-          </span>
-          <br />
-          Password: <span className="font-mono">password</span>
-        </div>
       </form>
     </div>
   );

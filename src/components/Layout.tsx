@@ -48,7 +48,7 @@ const FOLDERS = [
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { theme, tokens: t, toggle, appName } = useTheme();
+  const { theme, tokens: t, toggle, appName, logoUrl } = useTheme();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -94,12 +94,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       }}
     >
       <div className="px-5 py-5 flex items-center gap-3 flex-shrink-0">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-          style={{ background: t.accentGrad }}
-        >
-          I
-        </div>
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt={appName}
+            className="h-8 w-auto rounded object-contain"
+          />
+        ) : (
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+            style={{ background: t.accentGrad }}
+          >
+            I
+          </div>
+        )}
         <span className="font-semibold" style={{ color: t.text }}>
           {appName}
         </span>

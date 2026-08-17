@@ -1,8 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { useTheme } from "../theme";
 import { useStore } from "../store";
-import { Users, Mail, Workflow, Plus, X, Check, Package } from "lucide-react";
+import { api } from "../lib/api";
+import {
+  Users,
+  Mail,
+  Workflow,
+  Plus,
+  X,
+  Check,
+  Package,
+  Palette,
+} from "lucide-react";
 
 const MODULES = [
   "API & Webhooks",
@@ -79,7 +89,7 @@ const MODULES = [
 ];
 
 export default function AdminPage() {
-  const { tokens: t } = useTheme();
+  const { tokens: t, brand, logoUrl, faviconUrl, refreshBrand } = useTheme();
   const users = useStore((s) => s.users);
   const mailboxes = useStore((s) => s.mailboxes);
   const workflows = useStore((s) => s.workflows);
@@ -88,7 +98,7 @@ export default function AdminPage() {
   const addWorkflow = useStore((s) => s.addWorkflow);
 
   const [activeTab, setActiveTab] = useState<
-    "users" | "mailboxes" | "workflows" | "modules"
+    "users" | "mailboxes" | "workflows" | "modules" | "brand"
   >("users");
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddMailbox, setShowAddMailbox] = useState(false);
@@ -112,6 +122,13 @@ export default function AdminPage() {
     conditions: "",
     actions: "",
   });
+  const [brandForm, setBrandForm] = useState({
+    companyName: "",
+    primaryColor: "#2896E8",
+  });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [faviconFile, setFaviconFile] = useState<File | null>(null);
+  const [brandLoading, setBrandLoading] = useState(false);
 
   function submitUser() {
     if (!userForm.name || !userForm.email) return;
@@ -140,6 +157,39 @@ export default function AdminPage() {
     });
     setWfForm({ name: "", conditions: "", actions: "" });
     setShowAddWorkflow(false);
+  }
+
+  useEffect(() => {
+    if (brand) {
+      setBrandForm({
+        companyName: brand.companyName || "",
+        primaryColor: brand.primaryColor || "#2896E8",
+      });
+    }
+  }, [brand]);
+
+  function readFile(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function submitBrand() {
+    setBrandLoading(true);
+    const data: any = { ...brandForm };
+    try {
+      if (logoFile) data.logoS3Key = await readFile(logoFile);
+      if (faviconFile) data.faviconS3Key = await readFile(faviconFile);
+      await api.updateBrand(data);
+      await refreshBrand();
+      setLogoFile(null);
+      setFaviconFile(null);
+    } finally {
+      setBrandLoading(false);
+    }
   }
 
   const TabButton = ({
@@ -175,6 +225,7 @@ export default function AdminPage() {
           <TabButton id="mailboxes" label="Mailboxes" icon={Mail} />
           <TabButton id="workflows" label="Workflows" icon={Workflow} />
           <TabButton id="modules" label="Modules" icon={Package} />
+          <TabButton id="brand" label="Brand" icon={Palette} />
         </div>
 
         {activeTab === "users" && (
@@ -383,6 +434,143 @@ export default function AdminPage() {
                   </span>
                 </button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "brand" && (
+          <div
+            className="rounded-xl p-5 max-w-xl"
+            style={{
+              backgroundColor: t.card,
+              border: `1px solid ${t.cardBorder}`,
+            }}
+          >
+            <h3
+              className="text-sm font-semibold mb-4"
+              style={{ color: t.text }}
+            >
+              Brand customization
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label
+                  className="block text-xs font-medium mb-1.5"
+                  style={{ color: t.textMuted }}
+                >
+                  Company name
+                </label>
+                <input
+                  value={brandForm.companyName}
+                  onChange={(e) =>
+                    setBrandForm({ ...brandForm, companyName: e.target.value })
+                  }
+                  placeholder="Isotopiq Mail"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  style={{
+                    backgroundColor: t.inputBg,
+                    border: `1px solid ${t.inputBorder}`,
+                    color: t.text,
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  className="block text-xs font-medium mb-1.5"
+                  style={{ color: t.textMuted }}
+                >
+                  Primary color
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={brandForm.primaryColor}
+                    onChange={(e) =>
+                      setBrandForm({
+                        ...brandForm,
+                        primaryColor: e.target.value,
+                      })
+                    }
+                    className="w-10 h-10 rounded cursor-pointer"
+                  />
+                  <span
+                    className="text-sm font-mono"
+                    style={{ color: t.textSub }}
+                  >
+                    {brandForm.primaryColor}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label
+                  className="block text-xs font-medium mb-1.5"
+                  style={{ color: t.textMuted }}
+                >
+                  Logo
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                  className="text-sm mb-2"
+                  style={{ color: t.textSub }}
+                />
+                {logoUrl && !logoFile && (
+                  <img
+                    src={logoUrl}
+                    alt="Logo preview"
+                    className="h-12 w-auto rounded object-contain"
+                  />
+                )}
+                {logoFile && (
+                  <img
+                    src={URL.createObjectURL(logoFile)}
+                    alt="New logo"
+                    className="h-12 w-auto rounded object-contain"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label
+                  className="block text-xs font-medium mb-1.5"
+                  style={{ color: t.textMuted }}
+                >
+                  Favicon
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setFaviconFile(e.target.files?.[0] || null)}
+                  className="text-sm mb-2"
+                  style={{ color: t.textSub }}
+                />
+                {faviconUrl && !faviconFile && (
+                  <img
+                    src={faviconUrl}
+                    alt="Favicon preview"
+                    className="h-8 w-auto rounded object-contain"
+                  />
+                )}
+                {faviconFile && (
+                  <img
+                    src={URL.createObjectURL(faviconFile)}
+                    alt="New favicon"
+                    className="h-8 w-auto rounded object-contain"
+                  />
+                )}
+              </div>
+
+              <button
+                onClick={submitBrand}
+                disabled={brandLoading}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all disabled:opacity-60"
+                style={{ background: t.accentGrad }}
+              >
+                {brandLoading ? "Saving..." : "Save brand"}
+              </button>
             </div>
           </div>
         )}

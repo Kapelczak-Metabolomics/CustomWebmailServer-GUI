@@ -145,6 +145,8 @@ export const ThemeContext = createContext<{
   tokens: Tokens;
   brand: ApiBrand | null;
   appName: string;
+  logoUrl: string | null;
+  faviconUrl: string | null;
   toggle: () => void;
   setTheme: (theme: Theme) => void;
   refreshBrand: () => Promise<void>;
@@ -153,6 +155,8 @@ export const ThemeContext = createContext<{
   tokens: DARK,
   brand: null,
   appName: "Isotopiq Mail",
+  logoUrl: null,
+  faviconUrl: null,
   toggle: () => {},
   setTheme: () => {},
   refreshBrand: async () => {},
@@ -188,6 +192,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (brand?.companyName) {
       document.title = brand.companyName;
     }
+    if (brand?.faviconUrl) {
+      let link = document.querySelector(
+        "link[rel='icon']",
+      ) as HTMLLinkElement | null;
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = brand.faviconUrl;
+    }
   }, [brand]);
 
   const tokens = useMemo(
@@ -211,6 +226,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         tokens,
         brand,
         appName: brand?.companyName || "Isotopiq Mail",
+        logoUrl: brand?.logoUrl || null,
+        faviconUrl: brand?.faviconUrl || null,
         toggle: () => setTheme((th) => (th === "dark" ? "light" : "dark")),
         setTheme,
         refreshBrand,

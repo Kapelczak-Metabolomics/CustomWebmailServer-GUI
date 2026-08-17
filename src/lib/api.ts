@@ -156,6 +156,8 @@ export interface ApiBrand {
   primaryColor?: string | null;
   logoS3Key?: string | null;
   faviconS3Key?: string | null;
+  logoUrl?: string | null;
+  faviconUrl?: string | null;
   darkModeDefault?: boolean;
 }
 

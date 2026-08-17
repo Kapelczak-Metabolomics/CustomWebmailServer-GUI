@@ -37,6 +37,10 @@ services:
       - NODE_ENV=production
       - PORT=8097
       - APP_HOST=0.0.0.0
+      - SECRET_DIR=/app/data
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_NAME=${ADMIN_NAME}
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mail?schema=public
       - REDIS_URL=redis://redis:6379
       - CLIENT_URL=${CLIENT_URL}

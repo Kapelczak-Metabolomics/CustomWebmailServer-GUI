@@ -28,4 +28,4 @@ COPY --from=client-builder /app/dist ./public
 ENV PORT=8097
 EXPOSE 8097
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 CMD wget --spider -q "http://localhost:${PORT:-8097}/api/health" || exit 1
-CMD ["sh", "-c", "mkdir -p /app/data && ./node_modules/.bin/prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "mkdir -p /app/data && ./node_modules/.bin/prisma migrate deploy && node dist/scripts/seed.js && node dist/index.js"]
