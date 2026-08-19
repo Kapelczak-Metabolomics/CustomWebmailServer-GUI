@@ -60,10 +60,10 @@ services:
       dockerfile: Dockerfile
     container_name: isotopiq-mail-app
     ports:
-      - "18300:3000"
+      - "18300:18300"
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=18300
       - APP_HOST=0.0.0.0
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mail?schema=public
       - REDIS_URL=redis://redis:6379
@@ -90,7 +90,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:18300/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
