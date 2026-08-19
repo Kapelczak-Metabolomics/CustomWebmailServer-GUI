@@ -96,6 +96,7 @@ export default function AdminPage() {
   const workflows = useStore((s) => s.workflows);
   const addUser = useStore((s) => s.addUser);
   const addMailbox = useStore((s) => s.addMailbox);
+  const updateMailbox = useStore((s) => s.updateMailbox);
   const addWorkflow = useStore((s) => s.addWorkflow);
 
   const [activeTab, setActiveTab] = useState<
@@ -104,6 +105,7 @@ export default function AdminPage() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddMailbox, setShowAddMailbox] = useState(false);
   const [showAddWorkflow, setShowAddWorkflow] = useState(false);
+  const [editingMailboxId, setEditingMailboxId] = useState<string | null>(null);
   const [enabledModules, setEnabledModules] = useState<Record<string, boolean>>(
     {},
   );
@@ -118,6 +120,16 @@ export default function AdminPage() {
     name: "",
     email: "",
     color: "#2896E8",
+    imapHost: "",
+    imapPort: 993,
+    imapSecure: true,
+    imapUser: "",
+    imapPassword: "",
+    smtpHost: "",
+    smtpPort: 587,
+    smtpSecure: false,
+    smtpUser: "",
+    smtpPassword: "",
   });
   const [wfForm, setWfForm] = useState({
     name: "",
@@ -146,13 +158,48 @@ export default function AdminPage() {
 
   async function submitMailbox() {
     if (!mbForm.name || !mbForm.email) return;
-    await addMailbox({
-      name: mbForm.name,
-      email: mbForm.email,
-      color: mbForm.color,
+    if (editingMailboxId) {
+      await updateMailbox(editingMailboxId, mbForm);
+    } else {
+      await addMailbox(mbForm as any);
+    }
+    setMbForm({
+      name: "",
+      email: "",
+      color: "#2896E8",
+      imapHost: "",
+      imapPort: 993,
+      imapSecure: true,
+      imapUser: "",
+      imapPassword: "",
+      smtpHost: "",
+      smtpPort: 587,
+      smtpSecure: false,
+      smtpUser: "",
+      smtpPassword: "",
     });
-    setMbForm({ name: "", email: "", color: "#2896E8" });
+    setEditingMailboxId(null);
     setShowAddMailbox(false);
+  }
+
+  function editMailbox(m: any) {
+    setEditingMailboxId(m.id);
+    setMbForm({
+      name: m.name || "",
+      email: m.email || "",
+      color: m.color || "#2896E8",
+      imapHost: m.imapHost || "",
+      imapPort: m.imapPort || 993,
+      imapSecure: m.imapSecure ?? true,
+      imapUser: m.imapUser || "",
+      imapPassword: m.imapPassword || "",
+      smtpHost: m.smtpHost || "",
+      smtpPort: m.smtpPort || 587,
+      smtpSecure: m.smtpSecure ?? false,
+      smtpUser: m.smtpUser || "",
+      smtpPassword: m.smtpPassword || "",
+    });
+    setShowAddMailbox(true);
   }
 
   async function submitWorkflow() {
@@ -324,23 +371,36 @@ export default function AdminPage() {
                     border: `1px solid ${t.divider}`,
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: m.color }}
-                    />
-                    <span
-                      className="font-medium text-sm"
-                      style={{ color: t.text }}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: m.color }}
+                      />
+                      <span
+                        className="font-medium text-sm"
+                        style={{ color: t.text }}
+                      >
+                        {m.name}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => editMailbox(m)}
+                      className="text-xs px-2 py-1 rounded-lg"
+                      style={{
+                        color: t.accent,
+                        backgroundColor: `${t.accent}15`,
+                      }}
                     >
-                      {m.name}
-                    </span>
+                      Edit
+                    </button>
                   </div>
                   <div className="text-xs" style={{ color: t.textMuted }}>
                     {m.email}
                   </div>
                   <div className="text-xs mt-2" style={{ color: t.textFaint }}>
-                    {m.userIds.length} users assigned
+                    IMAP: {(m as any).imapHost || "not configured"} • SMTP:{" "}
+                    {(m as any).smtpHost || "not configured"}
                   </div>
                 </div>
               ))}
@@ -664,9 +724,12 @@ export default function AdminPage() {
 
         {showAddMailbox && (
           <Modal
-            title="Add mailbox"
+            title={editingMailboxId ? "Edit mailbox" : "Add mailbox"}
             t={t}
-            onClose={() => setShowAddMailbox(false)}
+            onClose={() => {
+              setShowAddMailbox(false);
+              setEditingMailboxId(null);
+            }}
             onSubmit={submitMailbox}
           >
             <input
@@ -695,7 +758,151 @@ export default function AdminPage() {
               type="color"
               value={mbForm.color}
               onChange={(e) => setMbForm({ ...mbForm, color: e.target.value })}
-              className="w-full h-10 rounded-lg"
+              className="w-full h-10 rounded-lg mb-4"
+            />
+
+            <div
+              className="text-xs font-semibold mb-2 pb-1 border-b"
+              style={{ color: t.textMuted, borderColor: t.divider }}
+            >
+              IMAP (incoming)
+            </div>
+            <input
+              value={mbForm.imapHost}
+              onChange={(e) => setMbForm({ ...mbForm, imapHost: e.target.value })}
+              placeholder="IMAP host (e.g. imap.gmail.com)"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-2 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <div className="flex gap-2 mb-2">
+              <input
+                type="number"
+                value={mbForm.imapPort}
+                onChange={(e) =>
+                  setMbForm({ ...mbForm, imapPort: parseInt(e.target.value) || 993 })
+                }
+                placeholder="Port"
+                className="w-24 px-3 py-2 rounded-lg text-sm outline-none"
+                style={{
+                  backgroundColor: t.inputBg,
+                  border: `1px solid ${t.inputBorder}`,
+                  color: t.text,
+                }}
+              />
+              <label
+                className="flex items-center gap-2 text-xs"
+                style={{ color: t.textSub }}
+              >
+                <input
+                  type="checkbox"
+                  checked={mbForm.imapSecure}
+                  onChange={(e) =>
+                    setMbForm({ ...mbForm, imapSecure: e.target.checked })
+                  }
+                />
+                SSL/TLS
+              </label>
+            </div>
+            <input
+              value={mbForm.imapUser}
+              onChange={(e) => setMbForm({ ...mbForm, imapUser: e.target.value })}
+              placeholder="IMAP username"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-2 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <input
+              type="password"
+              value={mbForm.imapPassword}
+              onChange={(e) =>
+                setMbForm({ ...mbForm, imapPassword: e.target.value })
+              }
+              placeholder="IMAP password"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-4 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+
+            <div
+              className="text-xs font-semibold mb-2 pb-1 border-b"
+              style={{ color: t.textMuted, borderColor: t.divider }}
+            >
+              SMTP (outgoing)
+            </div>
+            <input
+              value={mbForm.smtpHost}
+              onChange={(e) => setMbForm({ ...mbForm, smtpHost: e.target.value })}
+              placeholder="SMTP host (e.g. smtp.gmail.com)"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-2 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <div className="flex gap-2 mb-2">
+              <input
+                type="number"
+                value={mbForm.smtpPort}
+                onChange={(e) =>
+                  setMbForm({ ...mbForm, smtpPort: parseInt(e.target.value) || 587 })
+                }
+                placeholder="Port"
+                className="w-24 px-3 py-2 rounded-lg text-sm outline-none"
+                style={{
+                  backgroundColor: t.inputBg,
+                  border: `1px solid ${t.inputBorder}`,
+                  color: t.text,
+                }}
+              />
+              <label
+                className="flex items-center gap-2 text-xs"
+                style={{ color: t.textSub }}
+              >
+                <input
+                  type="checkbox"
+                  checked={mbForm.smtpSecure}
+                  onChange={(e) =>
+                    setMbForm({ ...mbForm, smtpSecure: e.target.checked })
+                  }
+                />
+                SSL/TLS
+              </label>
+            </div>
+            <input
+              value={mbForm.smtpUser}
+              onChange={(e) => setMbForm({ ...mbForm, smtpUser: e.target.value })}
+              placeholder="SMTP username"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-2 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <input
+              type="password"
+              value={mbForm.smtpPassword}
+              onChange={(e) =>
+                setMbForm({ ...mbForm, smtpPassword: e.target.value })
+              }
+              placeholder="SMTP password"
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
             />
           </Modal>
         )}

@@ -65,6 +65,10 @@ export default function ReadingPane() {
   const sendMessage = useStore((s) => s.sendMessage);
   const selectConversation = useStore((s) => s.selectConversation);
   const toggleStar = useStore((s) => s.toggleStar);
+  const followConversation = useStore((s) => s.followConversation);
+  const unfollowConversation = useStore((s) => s.unfollowConversation);
+  const snoozeConversation = useStore((s) => s.snoozeConversation);
+  const forwardConversation = useStore((s) => s.forwardConversation);
 
   const [replyText, setReplyText] = useState("");
   const [replyMode, setReplyMode] = useState<"reply" | "note">("reply");
@@ -84,6 +88,11 @@ export default function ReadingPane() {
   const [showSaved, setShowSaved] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [newTagInput, setNewTagInput] = useState("");
+  const [showForward, setShowForward] = useState(false);
+  const [showSnooze, setShowSnooze] = useState(false);
+  const [fwdTo, setFwdTo] = useState("");
+  const [fwdNote, setFwdNote] = useState("");
+  const [snoozeDate, setSnoozeDate] = useState("");
 
   const conversation = useMemo(
     () => conversations.find((c) => c.id === selectedId),
@@ -130,19 +139,15 @@ export default function ReadingPane() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const { uploadUrl, url } = await api.getUploadUrl(
-        file.name,
-        file.type || "application/octet-stream",
-      );
-      await fetch(uploadUrl, { method: "PUT", body: file });
-      setPendingAttachments((prev) => [...prev, { name: file.name, url }]);
+      const { name, url } = await api.uploadAttachment(file);
+      setPendingAttachments((prev) => [...prev, { name, url }]);
     } catch (err) {
       console.error("Upload failed", err);
       alert("Failed to upload attachment");
     }
   }
 
-  function handleSend() {
+  function handleSend(andClose = false) {
     if (!replyText.trim() && !pendingAttachments.length) return;
     const attachments = attachmentHtml();
     if (replyMode === "reply")
@@ -155,6 +160,23 @@ export default function ReadingPane() {
       });
     setReplyText("");
     setPendingAttachments([]);
+    if (andClose) setStatus(conv.id, "closed");
+  }
+
+  async function handleForward() {
+    if (!fwdTo.trim()) return;
+    await forwardConversation(conv.id, fwdTo.trim(), fwdNote.trim());
+    setFwdTo("");
+    setFwdNote("");
+    setShowForward(false);
+  }
+
+  async function handleSnooze() {
+    if (!snoozeDate) return;
+    const until = new Date(snoozeDate).toISOString();
+    await snoozeConversation(conv.id, until);
+    setShowSnooze(false);
+    setSnoozeDate("");
   }
 
   async function handleTagSelect(name: string) {
@@ -280,6 +302,34 @@ export default function ReadingPane() {
             >
               #{conv.number}
             </span>
+            {conv.snoozeUntil && (
+              <span
+                className="text-[10px] px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: "#8B5CF622", color: "#8B5CF6" }}
+              >
+                Snoozed until {formatDate(conv.snoozeUntil)}
+              </span>
+            )}
+            <button
+              onClick={() =>
+                conv.followers.includes(currentUser?.id || "")
+                  ? unfollowConversation(conv.id)
+                  : followConversation(conv.id)
+              }
+              className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1"
+              style={{
+                backgroundColor: conv.followers.includes(currentUser?.id || "")
+                  ? `${t.accent}22`
+                  : t.badgeBg,
+                color: conv.followers.includes(currentUser?.id || "")
+                  ? t.accent
+                  : t.textMuted,
+              }}
+            >
+              {conv.followers.includes(currentUser?.id || "")
+                ? "Following"
+                : "Follow"}
+            </button>
           </div>
           <div
             className="flex flex-wrap items-center gap-3 text-xs"
@@ -319,6 +369,26 @@ export default function ReadingPane() {
                 boxShadow: t.shadow,
               }}
             >
+              <button
+                onClick={() => {
+                  setShowSnooze(true);
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: t.textSub }}
+              >
+                <Clock className="w-3.5 h-3.5" /> Snooze
+              </button>
+              <button
+                onClick={() => {
+                  setShowForward(true);
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: t.textSub }}
+              >
+                <Icon.Forward /> Forward
+              </button>
               <button
                 onClick={() => {
                   changeFolder(conv.id, "archive");
@@ -629,17 +699,142 @@ export default function ReadingPane() {
               </label>
               <span>Ctrl + Enter to send</span>
             </div>
-            <button
-              onClick={handleSend}
-              disabled={!replyText.trim() && !pendingAttachments.length}
-              className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-              style={{ background: t.accentGrad }}
-            >
-              Send {replyMode === "note" ? "Note" : "Reply"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleSend()}
+                disabled={!replyText.trim() && !pendingAttachments.length}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: t.accentGrad }}
+              >
+                Send {replyMode === "note" ? "Note" : "Reply"}
+              </button>
+              {replyMode === "reply" && (
+                <button
+                  onClick={() => handleSend(true)}
+                  disabled={!replyText.trim() && !pendingAttachments.length}
+                  className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                  style={{
+                    color: t.textSub,
+                    backgroundColor: t.inputBg,
+                    border: `1px solid ${t.inputBorder}`,
+                  }}
+                >
+                  Send & Close
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {showForward && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
+          <div
+            className="w-full max-w-md rounded-2xl p-5"
+            style={{ backgroundColor: t.readLeftBg, boxShadow: t.shadow }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm" style={{ color: t.text }}>
+                Forward conversation
+              </h3>
+              <button
+                onClick={() => setShowForward(false)}
+                style={{ color: t.textSub }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              value={fwdTo}
+              onChange={(e) => setFwdTo(e.target.value)}
+              placeholder="Forward to (email address)"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <textarea
+              value={fwdNote}
+              onChange={(e) => setFwdNote(e.target.value)}
+              placeholder="Optional note..."
+              className="w-full min-h-[80px] px-3 py-2 rounded-lg text-sm mb-4 outline-none resize-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowForward(false)}
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{ color: t.textSub }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleForward}
+                disabled={!fwdTo.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: t.accentGrad }}
+              >
+                Forward
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSnooze && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
+          <div
+            className="w-full max-w-sm rounded-2xl p-5"
+            style={{ backgroundColor: t.readLeftBg, boxShadow: t.shadow }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm" style={{ color: t.text }}>
+                Snooze until
+              </h3>
+              <button
+                onClick={() => setShowSnooze(false)}
+                style={{ color: t.textSub }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              type="date"
+              value={snoozeDate}
+              onChange={(e) => setSnoozeDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg text-sm mb-4 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowSnooze(false)}
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{ color: t.textSub }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSnooze}
+                disabled={!snoozeDate}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: t.accentGrad }}
+              >
+                Snooze
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

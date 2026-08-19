@@ -516,4 +516,74 @@ export const api = {
   async listVideoRooms() {
     return this.get("/video/rooms");
   },
+
+  async joinVideoRoom(id: string) {
+    return this.post(`/video/rooms/${id}/join`, {});
+  },
+
+  // Portal (public, no auth)
+  async listPublicArticles() {
+    return this.get("/portal/articles") as Promise<KnowledgeBaseArticle[]>;
+  },
+
+  async submitPortalTicket(data: {
+    mailboxId?: string;
+    name: string;
+    email: string;
+    subject: string;
+    body: string;
+  }) {
+    return this.post("/portal/tickets", data) as Promise<{
+      number: number;
+      id: string;
+    }>;
+  },
+
+  async getPortalTicket(number: number, email: string) {
+    return this.get(
+      `/portal/tickets/${number}?email=${encodeURIComponent(email)}`,
+    );
+  },
+
+  // App settings
+  async getSettings() {
+    return this.get("/settings");
+  },
+
+  async updateSettings(data: Record<string, any>) {
+    return this.patch("/settings", data);
+  },
+
+  // Conversation follow/unfollow
+  async followConversation(id: string) {
+    return this.post(`/conversations/${id}/follow`);
+  },
+
+  async unfollowConversation(id: string) {
+    return this.post(`/conversations/${id}/unfollow`);
+  },
+
+  // Mailbox update (for IMAP/SMTP settings)
+  async updateMailbox(id: string, data: Partial<ApiMailbox>) {
+    const m: ApiMailbox = await this.patch(`/mailboxes/${id}`, data);
+    return toMailbox(m);
+  },
+
+  // Local attachment upload (handles local fallback)
+  async uploadAttachment(file: File): Promise<{ name: string; url: string }> {
+    const { uploadUrl, url, local } = await this.getUploadUrl(
+      file.name,
+      file.type || "application/octet-stream",
+    );
+    if (local) {
+      await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        credentials: "include",
+      });
+    } else {
+      await fetch(uploadUrl, { method: "PUT", body: file });
+    }
+    return { name: file.name, url };
+  },
 };

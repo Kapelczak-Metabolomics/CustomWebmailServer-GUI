@@ -41,13 +41,15 @@ export default function VideoPage() {
 
   useEffect(() => {
     if (!currentUser) return;
+    const token = document.cookie.match(/token=([^;]+)/)?.[1] || "";
     const socket = io("/", {
       transports: ["websocket"],
-      auth: { userId: currentUser.id },
+      auth: { token },
     });
     socketRef.current = socket;
 
     socket.on("user-joined", async ({ userId }: { userId: string }) => {
+      if (userId === currentUser.id) return;
       if (!localStreamRef.current) return;
       const pc = createPeer(userId);
       const offer = await pc.createOffer();

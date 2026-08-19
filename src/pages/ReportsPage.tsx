@@ -7,6 +7,7 @@ export default function ReportsPage() {
   const { tokens: t } = useTheme();
   const conversations = useStore((s) => s.conversations);
   const messages = useStore((s) => s.messages);
+  const mailboxes = useStore((s) => s.mailboxes);
 
   const byStatus = useMemo(() => {
     const s: Record<string, number> = {};
@@ -26,13 +27,12 @@ export default function ReportsPage() {
 
   const byMailbox = useMemo(() => {
     const s: Record<string, number> = {};
-    const mailboxes = useStore.getState().mailboxes;
     conversations.forEach((c) => {
       const m = mailboxes.find((x) => x.id === c.mailboxId)?.name || "Unknown";
       s[m] = (s[m] || 0) + 1;
     });
     return s;
-  }, [conversations]);
+  }, [conversations, mailboxes]);
 
   const max = Math.max(...Object.values(byStatus), 1);
 

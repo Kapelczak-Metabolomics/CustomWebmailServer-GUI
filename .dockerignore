@@ -16,3 +16,12 @@ coverage
 .svelte-kit
 .next
 out
+uploads
+.figma/make/dev
+.figma/make/dev.json
+.figma/make/deploy
+.figma/make/deploy-preview
+.figma/make/analyze-routes
+.figma/make/format
+.figma/make/install
+.figma/make/langserver

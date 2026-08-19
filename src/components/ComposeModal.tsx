@@ -71,12 +71,8 @@ export default function ComposeModal() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const { uploadUrl, url } = await api.getUploadUrl(
-        file.name,
-        file.type || "application/octet-stream",
-      );
-      await fetch(uploadUrl, { method: "PUT", body: file });
-      setPendingAttachments((prev) => [...prev, { name: file.name, url }]);
+      const { name, url } = await api.uploadAttachment(file);
+      setPendingAttachments((prev) => [...prev, { name, url }]);
     } catch (err) {
       console.error("Upload failed", err);
       alert("Failed to upload attachment");

@@ -15,6 +15,7 @@ import AdminPage from "./pages/AdminPage";
 import ChatPage from "./pages/ChatPage";
 import VideoPage from "./pages/VideoPage";
 import ComposeModal from "./components/ComposeModal";
+import ToastContainer from "./components/ui/Toast";
 
 function AuthLoader({ children }: { children: React.ReactNode }) {
   const restoreSession = useStore((s) => s.restoreSession);
@@ -134,6 +135,7 @@ export default function App() {
             <Route path="/portal" element={<PortalPage />} />
           </Routes>
           <ComposeModal />
+          <ToastContainer />
         </AuthLoader>
       </BrowserRouter>
     </ThemeProvider>

@@ -372,3 +372,13 @@ model BrandSettings {
   modules         Json?
   updatedAt       DateTime @updatedAt
 }
+
+model AppSettings {
+  id               String  @id @default(cuid())
+  companyName      String?
+  officeHours      String?
+  defaultMailboxId String?
+  autoReply        Boolean @default(false)
+  whiteLabel       Boolean @default(false)
+  updatedAt        DateTime @updatedAt
+}

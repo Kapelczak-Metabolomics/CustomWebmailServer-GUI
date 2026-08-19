@@ -43,8 +43,8 @@ export default function SettingsPage() {
     }
   }, [brand]);
 
-  function saveSettings() {
-    updateSettings(form);
+  async function saveSettings() {
+    await updateSettings(form);
   }
 
   async function saveBrand() {

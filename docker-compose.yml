@@ -42,44 +42,41 @@ services:
       - "5349:5349/tcp"
     restart: unless-stopped
 
+  mailpit:
+    image: axllent/mailpit
+    container_name: isotopiq-mail-mailpit
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      MP_IMAP_ENABLED: "true"
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: unless-stopped
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: isotopiq-mail
-    # Expose the app on host port 8097; Easypanel can also proxy to this container port
+    container_name: isotopiq-mail-app
     ports:
-      - "8097:8097"
+      - "3000:3000"
     environment:
       - NODE_ENV=production
-      - PORT=8097
+      - PORT=3000
       - APP_HOST=0.0.0.0
-      - SECRET_DIR=/app/data
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
-      - ADMIN_NAME=${ADMIN_NAME:-Admin User}
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mail?schema=public
       - REDIS_URL=redis://redis:6379
-      - CLIENT_URL=${CLIENT_URL:-}
-      - JWT_SECRET=${JWT_SECRET:-}
-      - JWT_EXPIRY=${JWT_EXPIRY:-7d}
-      - EMAIL_DEFAULT_FROM=${EMAIL_DEFAULT_FROM:-noreply@isotopiq.local}
-      - SMTP_HOST=${SMTP_HOST:-}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USER=${SMTP_USER:-}
-      - SMTP_PASS=${SMTP_PASS:-}
-      - SMTP_SECURE=${SMTP_SECURE:-false}
-      - S3_ENDPOINT=${S3_ENDPOINT:-}
-      - S3_REGION=${S3_REGION:-us-east-1}
-      - S3_BUCKET=${S3_BUCKET:-}
-      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-}
-      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-}
-      - S3_FORCE_PATH_STYLE=${S3_FORCE_PATH_STYLE:-false}
-      - TURN_SECRET=${TURN_SECRET:-change-me}
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:3000}
       - TURN_REALM=${TURN_REALM:-isotopiq.local}
+      - TURN_SECRET=${TURN_SECRET:-change-me}
       - TURN_TTL=${TURN_TTL:-86400}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - MAILPIT_HOST=mailpit
     volumes:
       - appdata:/app/data
+      - uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,8 +84,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test:
-        ["CMD", "wget", "--spider", "-q", "http://localhost:8097/api/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -97,3 +93,4 @@ services:
 volumes:
   pgdata:
   appdata:
+  uploads:

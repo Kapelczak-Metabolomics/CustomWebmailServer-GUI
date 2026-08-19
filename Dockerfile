@@ -20,12 +20,34 @@ RUN pnpm run build
 FROM node:22-alpine
 WORKDIR /app
 RUN npm install -g pnpm@10.34.3
+RUN apk add --no-cache wget
+
+# Copy server runtime
 COPY --from=server-builder /app/server/package.json ./package.json
 COPY --from=server-builder /app/server/node_modules ./node_modules
 COPY --from=server-builder /app/server/dist ./dist
 COPY --from=server-builder /app/server/prisma ./prisma
+
+# Copy built client
 COPY --from=client-builder /app/dist ./public
-ENV PORT=8097
-EXPOSE 8097
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 CMD wget --spider -q "http://localhost:${PORT:-8097}/api/health" || exit 1
-CMD ["sh", "-c", "mkdir -p /app/data && ./node_modules/.bin/prisma migrate deploy && node dist/scripts/seed.js && node dist/index.js"]
+
+# Create data and uploads directories
+RUN mkdir -p /app/data /app/uploads
+
+# Default env
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV APP_HOST=0.0.0.0
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mail?schema=public
+ENV REDIS_URL=redis://localhost:6379
+ENV CLIENT_URL=http://localhost:3000
+
+EXPOSE 3000
+
+# Persistent data volumes
+VOLUME ["/app/data", "/app/uploads"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget --spider -q "http://localhost:${PORT:-3000}/api/health" || exit 1
+
+CMD ["sh", "-c", "mkdir -p /app/data /app/uploads && ./node_modules/.bin/prisma migrate deploy && node dist/scripts/seed.js && node dist/index.js"]

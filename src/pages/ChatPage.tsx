@@ -47,9 +47,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!currentUser) return;
+    const token = document.cookie.match(/token=([^;]+)/)?.[1] || "";
     const socket = io("/", {
       transports: ["websocket"],
-      auth: { userId: currentUser.id },
+      auth: { token },
     });
     socketRef.current = socket;
     socket.on("new-message", (msg: ChatMessage) => {

@@ -61,6 +61,21 @@ router.post("/", async (req: AuthRequest, res) => {
     );
   }
 
+  // Send email for forwards to the specified recipients
+  if (type === "forward" && conv.mailbox && (to || []).length > 0) {
+    await sendMail({
+      mailbox: conv.mailbox,
+      from: conv.mailbox.email,
+      to: to as string[],
+      cc: cc as string[] | undefined,
+      bcc: bcc as string[] | undefined,
+      subject: `Fwd: ${conv.subject}`,
+      html: body,
+    }).catch((err: Error) =>
+      console.error("Failed to send forwarded mail:", err.message),
+    );
+  }
+
   res.status(201).json(message);
 });
 

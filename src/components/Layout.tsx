@@ -89,26 +89,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       className="flex flex-col h-full"
       style={{
         width: 240,
-        backgroundColor: t.sidebarBg,
+        background: t.sidebarGrad,
         borderRight: `1px solid ${t.sidebarBorder}`,
       }}
     >
-      <div className="px-5 py-5 flex items-center gap-3 flex-shrink-0">
+      <div
+        className="px-5 py-5 flex items-center gap-3 flex-shrink-0"
+        style={{
+          background: `linear-gradient(135deg, ${t.accentSoft} 0%, transparent 100%)`,
+        }}
+      >
         {logoUrl ? (
           <img
             src={logoUrl}
             alt={appName}
-            className="h-8 w-auto rounded object-contain"
+            className="h-8 w-auto rounded-lg object-contain"
           />
         ) : (
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-            style={{ background: t.accentGrad }}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm"
+            style={{ background: t.accentGrad, boxShadow: t.accentGlow }}
           >
-            I
+            {appName[0] || "I"}
           </div>
         )}
-        <span className="font-semibold" style={{ color: t.text }}>
+        <span className="font-bold font-display" style={{ color: t.text }}>
           {appName}
         </span>
       </div>
@@ -142,13 +147,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 to={item.to}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
-                  `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all relative ${
                     isActive ? "" : ""
                   }`
                 }
                 style={({ isActive }) => ({
                   backgroundColor: isActive ? t.navActive : "transparent",
                   color: isActive ? t.accent : t.textSub,
+                  boxShadow: isActive ? `inset 3px 0 0 ${t.accent}` : "none",
                 })}
               >
                 {({ isActive }) => (
@@ -267,11 +273,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         <div className="flex items-center gap-3">
           {currentUser && (
-            <Avatar
-              name={currentUser.name}
-              src={currentUser.avatar}
-              size="md"
-            />
+            <div className="relative">
+              <Avatar
+                name={currentUser.name}
+                src={currentUser.avatar}
+                size="md"
+              />
+              <span
+                className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
+                style={{
+                  backgroundColor: "#10B981",
+                  borderColor: t.sidebarBg,
+                }}
+              />
+            </div>
           )}
           <div className="flex-1 min-w-0">
             <p
@@ -280,8 +295,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             >
               {currentUser?.name || "Guest"}
             </p>
-            <p className="text-xs truncate" style={{ color: t.textMuted }}>
-              {currentUser?.email || ""}
+            <p
+              className="text-xs truncate capitalize"
+              style={{ color: t.textMuted }}
+            >
+              {currentUser?.role || ""}
             </p>
           </div>
         </div>

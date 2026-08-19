@@ -122,7 +122,19 @@ interface StoreState {
   addNote: (contactId: string, body: string, authorId: string) => Promise<void>;
 
   // settings
-  updateSettings: (settings: Partial<AppSettings>) => void;
+  updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
+  followConversation: (conversationId: string) => Promise<void>;
+  unfollowConversation: (conversationId: string) => Promise<void>;
+  snoozeConversation: (conversationId: string, until: string) => Promise<void>;
+  forwardConversation: (
+    conversationId: string,
+    to: string,
+    note: string,
+  ) => Promise<void>;
+  updateMailbox: (
+    id: string,
+    data: Partial<Mailbox> & Record<string, any>,
+  ) => Promise<void>;
   addMailbox: (
     data: Partial<Mailbox> & {
       name: string;
@@ -237,6 +249,7 @@ export const useStore = create<StoreState>((set, get) => ({
         savedReplies,
         workflows,
         articles,
+        settings,
       ] = await Promise.all([
         api.listUsers(),
         api.listMailboxes(),
@@ -246,6 +259,7 @@ export const useStore = create<StoreState>((set, get) => ({
         api.listSavedReplies(),
         api.listWorkflows(),
         api.listArticles(),
+        api.getSettings().catch(() => null),
       ]);
       set({
         users,
@@ -257,6 +271,16 @@ export const useStore = create<StoreState>((set, get) => ({
         savedReplies,
         workflows,
         articles,
+        settings: settings
+          ? {
+              companyName: settings.companyName || "",
+              defaultMailboxId: settings.defaultMailboxId || "",
+              officeHours: settings.officeHours || "",
+              autoReply: settings.autoReply ?? false,
+              whiteLabel: settings.whiteLabel ?? false,
+              darkMode: get().settings.darkMode,
+            }
+          : get().settings,
       });
     } catch (err: any) {
       console.error("Failed to load data:", err.message);
@@ -548,14 +572,96 @@ export const useStore = create<StoreState>((set, get) => ({
     }));
   },
 
-  updateSettings: (settings) =>
-    set((state) => ({ settings: { ...state.settings, ...settings } })),
+  updateSettings: async (settings) => {
+    set((state) => ({ settings: { ...state.settings, ...settings } }));
+    try {
+      await api.updateSettings(settings);
+    } catch (err: any) {
+      console.error("Failed to persist settings:", err.message);
+    }
+  },
+
+  followConversation: async (conversationId) => {
+    const currentUser = get().currentUser;
+    if (!currentUser) return;
+    await api.followConversation(conversationId);
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId && !c.followers.includes(currentUser.id)
+          ? { ...c, followers: [...c.followers, currentUser.id] }
+          : c,
+      ),
+    }));
+  },
+
+  unfollowConversation: async (conversationId) => {
+    const currentUser = get().currentUser;
+    if (!currentUser) return;
+    await api.unfollowConversation(conversationId);
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId
+          ? {
+              ...c,
+              followers: c.followers.filter((id) => id !== currentUser.id),
+            }
+          : c,
+      ),
+    }));
+  },
+
+  snoozeConversation: async (conversationId, until) => {
+    await api.snoozeConversation(conversationId, until);
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId
+          ? { ...c, snoozeUntil: until, updatedAt: new Date().toISOString() }
+          : c,
+      ),
+    }));
+  },
+
+  forwardConversation: async (conversationId, to, note) => {
+    const conv = get().conversations.find((c) => c.id === conversationId);
+    if (!conv) return;
+    const messages = get().messages.filter(
+      (m) => m.conversationId === conversationId,
+    );
+    const lastCustomer = [...messages]
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .reverse()
+      .find((m) => m.type === "customer" || m.type === "reply");
+    const fwdBody = `<p>${note ? `<p>${note}</p>` : ""}</p><br/><p>--- Forwarded message ---</p><p>Subject: ${conv.subject}</p><p>${lastCustomer?.body || ""}</p>`;
+    await api.sendMessage({
+      conversationId,
+      type: "forward",
+      body: fwdBody,
+      to: [to],
+    });
+  },
+
+  updateMailbox: async (id, data) => {
+    const mailbox = await api.updateMailbox(id, data);
+    set((state) => ({
+      mailboxes: state.mailboxes.map((m) => (m.id === id ? mailbox : m)),
+    }));
+  },
 
   addMailbox: async (data) => {
     const mailbox = await api.createMailbox({
       name: data.name,
       email: data.email,
       color: data.color,
+      imapHost: (data as any).imapHost,
+      imapPort: (data as any).imapPort,
+      imapSecure: (data as any).imapSecure,
+      imapUser: (data as any).imapUser,
+      imapPassword: (data as any).imapPassword,
+      smtpHost: (data as any).smtpHost,
+      smtpPort: (data as any).smtpPort,
+      smtpSecure: (data as any).smtpSecure,
+      smtpUser: (data as any).smtpUser,
+      smtpPassword: (data as any).smtpPassword,
     });
     set((state) => ({ mailboxes: [...state.mailboxes, mailbox] }));
     return mailbox;

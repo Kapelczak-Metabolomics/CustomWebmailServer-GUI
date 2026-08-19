@@ -44,36 +44,17 @@ services:
       - "5349:5349/tcp"
     restart: unless-stopped
 
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: isotopiq-mail-app
+  mailpit:
+    image: axllent/mailpit
+    container_name: isotopiq-mail-mailpit
     ports:
-      - "3000:3000"
-    env_file:
-      - .env
+      - "1025:1025"
+      - "8025:8025"
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mail?schema=public
-      - REDIS_URL=redis://redis:6379
-      - TURN_REALM=${TURN_REALM:-isotopiq.local}
-      - TURN_SECRET=${TURN_SECRET:-change-me}
-      - TURN_TTL=${TURN_TTL:-86400}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      MP_IMAP_ENABLED: "true"
     restart: unless-stopped
-    healthcheck:
-      test:
-        ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
 volumes:
   pgdata:

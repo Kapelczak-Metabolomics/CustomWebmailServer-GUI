@@ -26,6 +26,8 @@ import tagRoutes from "./routes/tags.js";
 import savedReplyRoutes from "./routes/savedReplies.js";
 import workflowRoutes from "./routes/workflows.js";
 import articleRoutes from "./routes/articles.js";
+import portalRoutes from "./routes/portal.js";
+import settingsRoutes from "./routes/settings.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -72,6 +74,8 @@ app.use("/api/tags", tagRoutes);
 app.use("/api/saved-replies", savedReplyRoutes);
 app.use("/api/workflows", workflowRoutes);
 app.use("/api/articles", articleRoutes);
+app.use("/api/portal", portalRoutes);
+app.use("/api/settings", settingsRoutes);
 
 // Serve React SPA from built client
 const publicDir = path.resolve(process.cwd(), "public");

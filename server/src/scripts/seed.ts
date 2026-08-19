@@ -101,16 +101,16 @@ async function main() {
       name: "Support",
       email: "support@example.com",
       color: "#2563EB",
-      imapHost: "",
-      imapPort: 993,
-      imapSecure: true,
-      imapUser: "",
-      imapPassword: "",
-      smtpHost: "",
-      smtpPort: 587,
+      imapHost: process.env.MAILPIT_HOST || "localhost",
+      imapPort: 143,
+      imapSecure: false,
+      imapUser: "support@example.com",
+      imapPassword: "anything",
+      smtpHost: process.env.MAILPIT_HOST || "localhost",
+      smtpPort: 1025,
       smtpSecure: false,
-      smtpUser: "",
-      smtpPassword: "",
+      smtpUser: "support@example.com",
+      smtpPassword: "anything",
     },
   });
 
@@ -118,6 +118,17 @@ async function main() {
     where: { id: (await prisma.brandSettings.findFirst())?.id ?? "" },
     update: {},
     create: { companyName: "IsotopIQ Mail", primaryColor: "#2563EB" },
+  });
+
+  await prisma.appSettings.upsert({
+    where: { id: (await prisma.appSettings.findFirst())?.id ?? "" },
+    update: {},
+    create: {
+      companyName: "IsotopIQ Mail",
+      officeHours: "Mon-Fri 9am-5pm",
+      autoReply: false,
+      whiteLabel: false,
+    },
   });
 
   const contactCount = await prisma.contact.count();
