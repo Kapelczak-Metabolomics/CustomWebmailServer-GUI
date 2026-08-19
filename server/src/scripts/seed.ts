@@ -102,17 +102,37 @@ async function main() {
       email: "support@example.com",
       color: "#2563EB",
       imapHost: process.env.MAILPIT_HOST || "localhost",
-      imapPort: 143,
+      imapPort: parseInt(process.env.MAILPIT_IMAP_PORT || "143"),
       imapSecure: false,
       imapUser: "support@example.com",
       imapPassword: "anything",
       smtpHost: process.env.MAILPIT_HOST || "localhost",
-      smtpPort: 1025,
+      smtpPort: parseInt(process.env.MAILPIT_SMTP_PORT || "1025"),
       smtpSecure: false,
       smtpUser: "support@example.com",
       smtpPassword: "anything",
     },
   });
+
+  // Create agent user for testing
+  const agentEmail = "agent@example.com";
+  const existingAgent = await prisma.user.findUnique({
+    where: { email: agentEmail },
+  });
+  if (!existingAgent) {
+    const agentHash = await bcrypt.hash("agent123", 10);
+    await prisma.user.create({
+      data: {
+        email: agentEmail,
+        name: "Agent One",
+        role: "agent",
+        password: agentHash,
+      },
+    });
+    console.log(`Agent user created: ${agentEmail} (password: agent123)`);
+  } else {
+    console.log(`Agent user already exists: ${agentEmail}`);
+  }
 
   await prisma.brandSettings.upsert({
     where: { id: (await prisma.brandSettings.findFirst())?.id ?? "" },

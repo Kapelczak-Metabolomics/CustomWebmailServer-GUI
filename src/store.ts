@@ -278,6 +278,7 @@ export const useStore = create<StoreState>((set, get) => ({
               officeHours: settings.officeHours || "",
               autoReply: settings.autoReply ?? false,
               whiteLabel: settings.whiteLabel ?? false,
+              forceReadReceipts: settings.forceReadReceipts ?? false,
               darkMode: get().settings.darkMode,
             }
           : get().settings,

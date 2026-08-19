@@ -154,7 +154,7 @@ export interface ApiMessageInput {
 }
 
 export interface ApiChatRoomInput {
-  name: string;
+  name: string | null;
   userIds: string[];
   direct?: boolean;
 }
@@ -441,6 +441,14 @@ export const api = {
 
   async listChatMessages(roomId: string) {
     return this.get(`/chat/rooms/${roomId}/messages`);
+  },
+
+  async getReadReceiptsSetting() {
+    return this.get("/chat/read-receipts");
+  },
+
+  async toggleReadReceipts(enabled: boolean) {
+    return this.patch("/chat/read-receipts", { enabled });
   },
 
   async createVideoRoom(name?: string) {

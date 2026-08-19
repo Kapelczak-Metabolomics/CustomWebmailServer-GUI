@@ -270,7 +270,7 @@ export default function ReadingPane() {
 
   return (
     <div
-      className="flex flex-col h-full"
+      className="flex flex-col h-full w-full flex-1"
       style={{ backgroundColor: t.readMain }}
     >
       <div

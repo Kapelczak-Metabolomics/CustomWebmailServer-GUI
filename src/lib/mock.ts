@@ -404,6 +404,7 @@ export const defaultSettings: AppSettings = {
   officeHours: "Mon-Fri 09:00-17:00 UTC",
   autoReply: false,
   whiteLabel: false,
+  forceReadReceipts: false,
   darkMode: true,
 };
 

@@ -18,11 +18,12 @@ router.get("/turn", (req: AuthRequest, res) => {
     .createHmac("sha1", config.turn.secret)
     .update(username)
     .digest("base64");
+  const turnPort = process.env.TURN_PORT || "3478";
   res.json({
     urls: [
-      `turn:${config.turn.realm}:3478?transport=udp`,
-      `turn:${config.turn.realm}:3478?transport=tcp`,
-      `stun:${config.turn.realm}:3478`,
+      `turn:${config.turn.realm}:${turnPort}?transport=udp`,
+      `turn:${config.turn.realm}:${turnPort}?transport=tcp`,
+      `stun:${config.turn.realm}:${turnPort}`,
     ],
     username,
     credential,

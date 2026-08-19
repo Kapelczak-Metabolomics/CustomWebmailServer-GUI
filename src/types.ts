@@ -143,6 +143,7 @@ export interface AppSettings {
   officeHours: string;
   autoReply: boolean;
   whiteLabel: boolean;
+  forceReadReceipts: boolean;
   darkMode: boolean;
 }
 

@@ -46,6 +46,15 @@ The application runs entirely via Docker. All services (app, PostgreSQL, Redis, 
 
 ### Production (EasyPanel)
 
+All services use unique ports (18xxx range) to avoid conflicts:
+
+| Service    | Host Port | Container Port |
+|------------|-----------|----------------|
+| App        | 18300     | 3000           |
+| Mailpit UI | 18025     | 18025          |
+| Mailpit SMTP| 18125    | 18125          |
+| coturn     | 18478     | 18478          |
+
 ```bash
 # Build and start all services
 docker compose up -d --build
@@ -57,7 +66,7 @@ docker compose ps
 docker compose logs -f app
 ```
 
-The app container serves both the API (on `/api/*`) and the built React frontend (on all other routes) from a single port (3000).
+The app container serves both the API (on `/api/*`) and the built React frontend (on all other routes) from a single port (18300 on host, 3000 in container).
 
 ### Development
 

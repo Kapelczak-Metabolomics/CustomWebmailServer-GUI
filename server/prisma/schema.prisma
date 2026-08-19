@@ -16,6 +16,7 @@ model User {
   timezone  String   @default("UTC")
   status    String   @default("active") // active, away, offline
   avatar    String?
+  readReceiptsEnabled Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -23,6 +24,7 @@ model User {
   messages              Message[]
   chatRoomMemberships   ChatRoomMember[]
   chatMessages          ChatMessage[]
+  chatReceipts          ChatMessageReceipt[]
   followers             ConversationFollower[]
   videoRoomMembers      VideoRoomMember[]
   teams                 UserTeam[]
@@ -333,8 +335,22 @@ model ChatMessage {
   body      String
   createdAt DateTime @default(now())
 
-  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room     ChatRoom           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  receipts ChatMessageReceipt[]
+}
+
+model ChatMessageReceipt {
+  id          String   @id @default(cuid())
+  messageId   String
+  userId      String
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
 }
 
 model VideoRoom {
@@ -374,11 +390,12 @@ model BrandSettings {
 }
 
 model AppSettings {
-  id               String  @id @default(cuid())
-  companyName      String?
-  officeHours      String?
-  defaultMailboxId String?
-  autoReply        Boolean @default(false)
-  whiteLabel       Boolean @default(false)
-  updatedAt        DateTime @updatedAt
+  id                 String  @id @default(cuid())
+  companyName        String?
+  officeHours        String?
+  defaultMailboxId   String?
+  autoReply          Boolean @default(false)
+  whiteLabel         Boolean @default(false)
+  forceReadReceipts  Boolean @default(false)
+  updatedAt          DateTime @updatedAt
 }

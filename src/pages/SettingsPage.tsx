@@ -140,6 +140,12 @@ export default function SettingsPage() {
                 onChange={(v) => setForm({ ...form, whiteLabel: v })}
                 t={t}
               />
+              <Toggle
+                label="Force read receipts for all users"
+                checked={form.forceReadReceipts}
+                onChange={(v) => setForm({ ...form, forceReadReceipts: v })}
+                t={t}
+              />
             </Section>
 
             <Section icon={Palette} title="Appearance">

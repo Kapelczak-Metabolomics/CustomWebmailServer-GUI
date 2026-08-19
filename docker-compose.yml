@@ -36,10 +36,10 @@ services:
       - "--use-auth-secret"
       - "--static-auth-secret=${TURN_SECRET:-change-me}"
       - "--no-cli"
+      - "--listening-port=18478"
     ports:
-      - "3478:3478/udp"
-      - "3478:3478/tcp"
-      - "5349:5349/tcp"
+      - "18478:18478/udp"
+      - "18478:18478/tcp"
     restart: unless-stopped
 
   mailpit:
@@ -50,8 +50,8 @@ services:
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
       MP_IMAP_ENABLED: "true"
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "18125:1025"
+      - "18025:8025"
     restart: unless-stopped
 
   app:
@@ -60,20 +60,26 @@ services:
       dockerfile: Dockerfile
     container_name: isotopiq-mail-app
     ports:
-      - "3000:3000"
+      - "18300:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
       - APP_HOST=0.0.0.0
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mail?schema=public
       - REDIS_URL=redis://redis:6379
-      - CLIENT_URL=${CLIENT_URL:-http://localhost:3000}
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:18300}
       - TURN_REALM=${TURN_REALM:-isotopiq.local}
       - TURN_SECRET=${TURN_SECRET:-change-me}
       - TURN_TTL=${TURN_TTL:-86400}
+      - TURN_PORT=18478
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - MAILPIT_HOST=mailpit
+      - MAILPIT_SMTP_PORT=1025
+      - MAILPIT_IMAP_PORT=143
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      - SMTP_SECURE=false
     volumes:
       - appdata:/app/data
       - uploads:/app/uploads

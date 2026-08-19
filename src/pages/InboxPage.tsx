@@ -8,7 +8,7 @@ export default function InboxPage() {
 
   return (
     <Layout>
-      <div className="flex h-full w-full overflow-hidden">
+      <div className="flex h-full w-full overflow-hidden flex-1">
         <div
           className={`w-full md:w-[360px] lg:w-[400px] flex-shrink-0 h-full ${
             selectedId ? "hidden md:block" : ""

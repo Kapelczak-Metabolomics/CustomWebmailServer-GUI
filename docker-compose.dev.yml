@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: mail
     ports:
-      - "5432:5432"
+      - "18543:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
     image: redis:7-alpine
     container_name: isotopiq-mail-redis
     ports:
-      - "6379:6379"
+      - "18379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -38,18 +38,18 @@ services:
       - "--use-auth-secret"
       - "--static-auth-secret=${TURN_SECRET:-change-me}"
       - "--no-cli"
+      - "--listening-port=18478"
     ports:
-      - "3478:3478/udp"
-      - "3478:3478/tcp"
-      - "5349:5349/tcp"
+      - "18478:18478/udp"
+      - "18478:18478/tcp"
     restart: unless-stopped
 
   mailpit:
     image: axllent/mailpit
     container_name: isotopiq-mail-mailpit
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "18125:1025"
+      - "18025:8025"
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
