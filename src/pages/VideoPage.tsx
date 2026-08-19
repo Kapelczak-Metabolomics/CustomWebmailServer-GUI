@@ -15,6 +15,8 @@ import {
   Copy,
   Users,
   Plus,
+  X,
+  UserCircle,
 } from "lucide-react";
 
 interface VideoUser {
@@ -38,6 +40,7 @@ interface RemotePeer {
   stream: MediaStream | null;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  connectionState: RTCPeerConnectionState;
 }
 
 export default function VideoPage() {
@@ -54,19 +57,16 @@ export default function VideoPage() {
   const [camOn, setCamOn] = useState(true);
   const [participants, setParticipants] = useState<RemotePeer[]>([]);
   const [showInvite, setShowInvite] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteContainerRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const currentUserRef = useRef<string | null>(null);
-  const turnRef = useRef<{
-    urls: string[];
-    username: string;
-    credential: string;
-  } | null>(null);
+  const usersRef = useRef(users);
+  usersRef.current = users;
 
   currentUserRef.current = currentUser?.id || null;
 
@@ -83,7 +83,7 @@ export default function VideoPage() {
     socket.on("user-joined", async ({ userId }: { userId: string }) => {
       if (userId === currentUserRef.current) return;
       if (!localStreamRef.current) return;
-      const peerUser = users.find((u) => u.id === userId);
+      const peerUser = usersRef.current.find((u) => u.id === userId);
       setParticipants((prev) => [
         ...prev.filter((p) => p.userId !== userId),
         {
@@ -92,6 +92,7 @@ export default function VideoPage() {
           stream: null,
           audioEnabled: true,
           videoEnabled: true,
+          connectionState: "new",
         },
       ]);
       // Create offer to the new user
@@ -124,7 +125,7 @@ export default function VideoPage() {
         offer: RTCSessionDescriptionInit;
       }) => {
         if (senderId === currentUserRef.current) return;
-        const peerUser = users.find((u) => u.id === senderId);
+        const peerUser = usersRef.current.find((u) => u.id === senderId);
         setParticipants((prev) => [
           ...prev.filter((p) => p.userId !== senderId),
           {
@@ -133,6 +134,7 @@ export default function VideoPage() {
             stream: null,
             audioEnabled: true,
             videoEnabled: true,
+            connectionState: "new",
           },
         ]);
         const pc = createPeer(senderId);
@@ -157,7 +159,7 @@ export default function VideoPage() {
         answer: RTCSessionDescriptionInit;
       }) => {
         const pc = peersRef.current[senderId];
-        if (pc && pc.signalingState !== "stable") {
+        if (pc && pc.signalingState === "have-local-offer") {
           await pc.setRemoteDescription(answer);
         }
       },
@@ -173,7 +175,7 @@ export default function VideoPage() {
         candidate: RTCIceCandidateInit;
       }) => {
         const pc = peersRef.current[senderId];
-        if (pc) {
+        if (pc && pc.remoteDescription) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
           } catch (e) {
@@ -193,24 +195,19 @@ export default function VideoPage() {
   }, [currentUser]);
 
   const createPeer = useCallback((userId: string) => {
+    // Use public Google STUN servers; add TURN if available and reachable
     const iceServers: RTCIceServer[] = [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
     ];
-    if (turnRef.current) {
-      turnRef.current.urls.forEach((url) => {
-        iceServers.push({
-          urls: url,
-          username: turnRef.current!.username,
-          credential: turnRef.current!.credential,
-        });
-      });
-    }
+
     const pc = new RTCPeerConnection({ iceServers });
 
-    localStreamRef.current
-      ?.getTracks()
-      .forEach((track) => pc.addTrack(track, localStreamRef.current!));
+    // Add local tracks
+    const stream = localStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    }
 
     pc.onicecandidate = (e) => {
       if (e.candidate && socketRef.current) {
@@ -227,10 +224,12 @@ export default function VideoPage() {
         const existing = prev.find((p) => p.userId === userId);
         if (existing) {
           return prev.map((p) =>
-            p.userId === userId ? { ...p, stream: e.streams[0] } : p,
+            p.userId === userId
+              ? { ...p, stream: e.streams[0] }
+              : p,
           );
         }
-        const peerUser = users.find((u) => u.id === userId);
+        const peerUser = usersRef.current.find((u) => u.id === userId);
         return [
           ...prev,
           {
@@ -239,35 +238,32 @@ export default function VideoPage() {
             stream: e.streams[0],
             audioEnabled: true,
             videoEnabled: true,
+            connectionState: "connected",
           },
         ];
       });
-      // Also attach to a video element
-      let el = document.getElementById(
-        `remote-video-${userId}`,
-      ) as HTMLVideoElement | null;
-      if (!el && remoteContainerRef.current) {
-        el = document.createElement("video");
-        el.id = `remote-video-${userId}`;
-        el.autoplay = true;
-        el.playsInline = true;
-        el.className = "w-full h-full object-cover";
-        el.setAttribute("data-user-id", userId);
-        remoteContainerRef.current.appendChild(el);
-      }
-      if (el) el.srcObject = e.streams[0];
     };
 
     pc.onconnectionstatechange = () => {
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.userId === userId
+            ? { ...p, connectionState: pc.connectionState }
+            : p,
+        ),
+      );
       if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-        const el = document.getElementById(`remote-video-${userId}`);
-        if (el) el.remove();
+        const pc2 = peersRef.current[userId];
+        if (pc2) {
+          pc2.close();
+          delete peersRef.current[userId];
+        }
       }
     };
 
     peersRef.current[userId] = pc;
     return pc;
-  }, [users]);
+  }, []);
 
   async function joinRoom(room: VideoRoom) {
     setLoading(true);
@@ -278,25 +274,42 @@ export default function VideoPage() {
         audio: { echoCancellation: true, noiseSuppression: true },
       });
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-
-      const turn = await api.getTurnCredentials().catch(() => null);
-      if (turn) turnRef.current = turn;
 
       activeRoomRef.current = room.id;
       setActiveRoom(room);
-      socketRef.current?.emit("join-room", room.id);
-      await api.joinVideoRoom(room.id);
       setJoined(true);
       setMicOn(true);
       setCamOn(true);
+
+      // Set srcObject and ensure playback
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        try {
+          await localVideoRef.current.play();
+        } catch (e) {
+          console.warn("Autoplay prevented:", e);
+        }
+      }
+
+      // Join the socket room and register with the backend
+      socketRef.current?.emit("join-room", room.id);
+      await api.joinVideoRoom(room.id);
     } catch (err: any) {
       console.error("Failed to join:", err);
       setError(
         err?.name === "NotAllowedError"
           ? "Camera/microphone access denied. Please allow permissions and try again."
-          : "Failed to join room: " + (err?.message || "Unknown error"),
+          : err?.name === "NotFoundError"
+            ? "No camera or microphone found. Please connect a device and try again."
+            : "Failed to join meeting: " + (err?.message || "Unknown error"),
       );
+      // Clean up partial state
+      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+      activeRoomRef.current = null;
+      setActiveRoom(null);
+      setJoined(false);
     } finally {
       setLoading(false);
     }
@@ -312,7 +325,7 @@ export default function VideoPage() {
       setRoomName("");
       await joinRoom(room);
     } catch (err) {
-      setError("Failed to create room");
+      setError("Failed to create meeting");
     } finally {
       setLoading(false);
     }
@@ -324,14 +337,11 @@ export default function VideoPage() {
     peersRef.current = {};
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
     activeRoomRef.current = null;
     setActiveRoom(null);
     setJoined(false);
     setParticipants([]);
-    // Clean up remote video elements
-    if (remoteContainerRef.current) {
-      remoteContainerRef.current.innerHTML = "";
-    }
   }
 
   function toggleMic() {
@@ -377,6 +387,20 @@ export default function VideoPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rooms]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      Object.values(peersRef.current).forEach((pc) => pc.close());
+      peersRef.current = {};
+    };
+  }, []);
+
+  const allParticipants = [
+    { userId: currentUser?.id || "", userName: currentUser?.name || "You", isLocal: true },
+    ...participants.map((p) => ({ userId: p.userId, userName: p.userName, isLocal: false })),
+  ];
 
   return (
     <Layout>
@@ -499,124 +523,76 @@ export default function VideoPage() {
                     {participants.length + 1}
                   </span>
                 </div>
-                <button
-                  onClick={() => {
-                    copyInvite();
-                    setShowInvite(true);
-                    setTimeout(() => setShowInvite(false), 2000);
-                  }}
-                  className="text-xs flex items-center gap-1 px-3 py-1.5 rounded-lg"
-                  style={{
-                    color: t.textSub,
-                    backgroundColor: t.inputBg,
-                  }}
-                >
-                  <Copy className="w-3 h-3" />
-                  {showInvite ? "Copied!" : "Invite link"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowParticipants((v) => !v)}
+                    className="text-xs flex items-center gap-1 px-3 py-1.5 rounded-lg"
+                    style={{
+                      color: showParticipants ? "#fff" : t.textSub,
+                      backgroundColor: showParticipants ? t.accent : t.inputBg,
+                    }}
+                  >
+                    <Users className="w-3 h-3" />
+                    Participants
+                  </button>
+                  <button
+                    onClick={() => {
+                      copyInvite();
+                      setShowInvite(true);
+                      setTimeout(() => setShowInvite(false), 2000);
+                    }}
+                    className="text-xs flex items-center gap-1 px-3 py-1.5 rounded-lg"
+                    style={{
+                      color: t.textSub,
+                      backgroundColor: t.inputBg,
+                    }}
+                  >
+                    <Copy className="w-3 h-3" />
+                    {showInvite ? "Copied!" : "Invite"}
+                  </button>
+                </div>
               </div>
 
-              {/* Video grid */}
-              <div className="flex-1 p-4 overflow-hidden">
-                <div
-                  className="grid gap-3 h-full"
-                  style={{
-                    gridTemplateColumns: `repeat(${Math.min(participants.length + 1, 3)}, 1fr)`,
-                    gridAutoRows: "1fr",
-                  }}
-                >
-                  {/* Local video */}
+              <div className="flex-1 flex overflow-hidden">
+                {/* Video grid */}
+                <div className="flex-1 p-4 overflow-hidden">
                   <div
-                    className="relative rounded-xl overflow-hidden flex items-center justify-center"
-                    style={{ backgroundColor: "#1a1a2e", minHeight: "150px" }}
+                    className="grid gap-3 h-full"
+                    style={{
+                      gridTemplateColumns: `repeat(${Math.min(participants.length + 1, 3)}, 1fr)`,
+                      gridAutoRows: "1fr",
+                    }}
                   >
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                      style={{ display: camOn ? "block" : "none" }}
-                    />
-                    {!camOn && (
-                      <div className="flex flex-col items-center justify-center">
-                        <div
-                          className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold mb-2"
-                          style={{
-                            background: t.accentGrad,
-                            color: "#fff",
-                          }}
-                        >
-                          {currentUser?.name?.[0] || "U"}
-                        </div>
-                      </div>
-                    )}
+                    {/* Local video */}
                     <div
-                      className="absolute bottom-2 left-2 right-2 flex items-center justify-between"
-                    >
-                      <span
-                        className="text-xs px-2 py-1 rounded-md font-medium"
-                        style={{
-                          backgroundColor: "rgba(0,0,0,0.6)",
-                          color: "#fff",
-                        }}
-                      >
-                        {currentUser?.name} (You)
-                      </span>
-                      <div className="flex gap-1">
-                        {!micOn && (
-                          <span
-                            className="p-1 rounded-md"
-                            style={{ backgroundColor: "#EF4444" }}
-                          >
-                            <MicOff className="w-3 h-3 text-white" />
-                          </span>
-                        )}
-                        {!camOn && (
-                          <span
-                            className="p-1 rounded-md"
-                            style={{ backgroundColor: "#EF4444" }}
-                          >
-                            <VideoOff className="w-3 h-3 text-white" />
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Remote videos */}
-                  {participants.map((p) => (
-                    <div
-                      key={p.userId}
                       className="relative rounded-xl overflow-hidden flex items-center justify-center"
                       style={{ backgroundColor: "#1a1a2e", minHeight: "150px" }}
                     >
-                      {p.stream ? (
-                        <RemoteVideo
-                          userId={p.userId}
-                          stream={p.stream}
-                          userName={p.userName}
-                        />
-                      ) : (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                        style={{
+                          transform: "scaleX(-1)",
+                          display: camOn ? "block" : "none",
+                        }}
+                      />
+                      {!camOn && (
                         <div className="flex flex-col items-center justify-center">
                           <div
-                            className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold mb-2 animate-pulse"
+                            className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold mb-2"
                             style={{
-                              backgroundColor: `${t.accent}44`,
-                              color: t.accent,
+                              background: t.accentGrad,
+                              color: "#fff",
                             }}
                           >
-                            {p.userName[0]}
+                            {currentUser?.name?.[0] || "U"}
                           </div>
-                          <span
-                            className="text-xs"
-                            style={{ color: t.textMuted }}
-                          >
-                            Connecting...
-                          </span>
                         </div>
                       )}
-                      <div className="absolute bottom-2 left-2">
+                      <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
                         <span
                           className="text-xs px-2 py-1 rounded-md font-medium"
                           style={{
@@ -624,12 +600,192 @@ export default function VideoPage() {
                             color: "#fff",
                           }}
                         >
-                          {p.userName}
+                          {currentUser?.name} (You)
                         </span>
+                        <div className="flex gap-1">
+                          {!micOn && (
+                            <span
+                              className="p-1 rounded-md"
+                              style={{ backgroundColor: "#EF4444" }}
+                            >
+                              <MicOff className="w-3 h-3 text-white" />
+                            </span>
+                          )}
+                          {!camOn && (
+                            <span
+                              className="p-1 rounded-md"
+                              style={{ backgroundColor: "#EF4444" }}
+                            >
+                              <VideoOff className="w-3 h-3 text-white" />
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  ))}
+
+                    {/* Remote videos */}
+                    {participants.map((p) => (
+                      <div
+                        key={p.userId}
+                        className="relative rounded-xl overflow-hidden flex items-center justify-center"
+                        style={{ backgroundColor: "#1a1a2e", minHeight: "150px" }}
+                      >
+                        {p.stream ? (
+                          <RemoteVideo stream={p.stream} />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center">
+                            <div
+                              className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold mb-2 animate-pulse"
+                              style={{
+                                backgroundColor: `${t.accent}44`,
+                                color: t.accent,
+                              }}
+                            >
+                              {p.userName[0]}
+                            </div>
+                            <span
+                              className="text-xs"
+                              style={{ color: t.textMuted }}
+                            >
+                              Connecting...
+                            </span>
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+                          <span
+                            className="text-xs px-2 py-1 rounded-md font-medium"
+                            style={{
+                              backgroundColor: "rgba(0,0,0,0.6)",
+                              color: "#fff",
+                            }}
+                          >
+                            {p.userName}
+                          </span>
+                          {p.connectionState === "connected" && (
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded-full"
+                              style={{
+                                backgroundColor: "#22c55e88",
+                                color: "#22c55e",
+                              }}
+                            >
+                              Connected
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Participants sidebar */}
+                {showParticipants && (
+                  <div
+                    className="w-64 border-l flex flex-col flex-shrink-0"
+                    style={{
+                      borderColor: t.divider,
+                      backgroundColor: t.readLeftBg,
+                    }}
+                  >
+                    <div
+                      className="flex items-center justify-between px-4 py-3 border-b"
+                      style={{ borderColor: t.divider }}
+                    >
+                      <h3
+                        className="font-semibold text-sm"
+                        style={{ color: t.text }}
+                      >
+                        Participants ({allParticipants.length})
+                      </h3>
+                      <button
+                        onClick={() => setShowParticipants(false)}
+                        style={{ color: t.textSub }}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                      {allParticipants.map((p) => (
+                        <div
+                          key={p.userId}
+                          className="flex items-center gap-3 px-4 py-3 border-b"
+                          style={{ borderColor: t.divider }}
+                        >
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
+                            style={{
+                              background: `linear-gradient(135deg,${t.accent}22,${t.accent}10)`,
+                              color: t.accent,
+                            }}
+                          >
+                            {p.userName[0]}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div
+                              className="text-sm font-medium truncate"
+                              style={{ color: t.text }}
+                            >
+                              {p.userName}
+                            </div>
+                            <div
+                              className="text-xs"
+                              style={{ color: t.textMuted }}
+                            >
+                              {p.isLocal
+                                ? "You (host)"
+                                : participants.find((pp) => pp.userId === p.userId)
+                                    ?.connectionState === "connected"
+                                  ? "Connected"
+                                  : "Connecting..."}
+                            </div>
+                          </div>
+                          {p.isLocal ? (
+                            <div className="flex gap-1">
+                              {!micOn && (
+                                <span
+                                  className="p-1 rounded-md"
+                                  style={{ backgroundColor: "#EF4444" }}
+                                >
+                                  <MicOff className="w-3 h-3 text-white" />
+                                </span>
+                              )}
+                              {!camOn && (
+                                <span
+                                  className="p-1 rounded-md"
+                                  style={{ backgroundColor: "#EF4444" }}
+                                >
+                                  <VideoOff className="w-3 h-3 text-white" />
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <UserCircle
+                              className="w-5 h-5"
+                              style={{ color: t.textFaint }}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {/* Invite link section */}
+                    <div
+                      className="p-4 border-t"
+                      style={{ borderColor: t.divider }}
+                    >
+                      <button
+                        onClick={copyInvite}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                        style={{
+                          color: t.textSub,
+                          backgroundColor: t.inputBg,
+                        }}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy invite link
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Control bar */}
@@ -709,19 +865,12 @@ export default function VideoPage() {
 }
 
 // Separate component for remote video to properly handle stream
-function RemoteVideo({
-  userId,
-  stream,
-  userName,
-}: {
-  userId: string;
-  stream: MediaStream;
-  userName: string;
-}) {
+function RemoteVideo({ stream }: { stream: MediaStream }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     if (ref.current) {
       ref.current.srcObject = stream;
+      ref.current.play().catch(() => {});
     }
   }, [stream]);
   return (

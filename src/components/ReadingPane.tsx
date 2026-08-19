@@ -31,6 +31,7 @@ import {
   ChevronLeft,
   Reply,
   MoreHorizontal,
+  StickyNote,
 } from "lucide-react";
 
 function toHtml(text: string) {
@@ -93,6 +94,8 @@ export default function ReadingPane() {
   const [fwdTo, setFwdTo] = useState("");
   const [fwdNote, setFwdNote] = useState("");
   const [snoozeDate, setSnoozeDate] = useState("");
+  const [showNotesPanel, setShowNotesPanel] = useState(false);
+  const [quickNote, setQuickNote] = useState("");
 
   const conversation = useMemo(
     () => conversations.find((c) => c.id === selectedId),
@@ -347,6 +350,28 @@ export default function ReadingPane() {
 
         <div className="flex items-center gap-2 flex-shrink-0 ml-4">
           <button
+            onClick={() => setShowNotesPanel((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
+            style={{
+              backgroundColor: showNotesPanel ? "#F59E0B" : t.inputBg,
+              color: showNotesPanel ? "#fff" : t.textSub,
+            }}
+          >
+            <StickyNote className="w-3.5 h-3.5" />
+            Notes
+            {convMessages.filter((m) => m.type === "note").length > 0 && (
+              <span
+                className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px]"
+                style={{
+                  backgroundColor: showNotesPanel ? "#ffffff33" : "#F59E0B22",
+                  color: showNotesPanel ? "#fff" : "#F59E0B",
+                }}
+              >
+                {convMessages.filter((m) => m.type === "note").length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setReplyMode("reply")}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
             style={{ backgroundColor: t.accent, color: "#fff" }}
@@ -588,6 +613,147 @@ export default function ReadingPane() {
           <MessageBubble key={msg.id} msg={msg} />
         ))}
       </div>
+
+      {/* Internal Staff Notes Panel */}
+      {showNotesPanel && (
+        <div
+          className="border-t flex flex-col"
+          style={{
+            borderColor: t.divider,
+            backgroundColor: "#F59E0B08",
+            maxHeight: "40%",
+          }}
+        >
+          <div
+            className="flex items-center justify-between px-6 py-2 border-b"
+            style={{ borderColor: "#F59E0B22" }}
+          >
+            <div className="flex items-center gap-2">
+              <StickyNote className="w-4 h-4" style={{ color: "#F59E0B" }} />
+              <span
+                className="text-xs font-semibold"
+                style={{ color: t.text }}
+              >
+                Internal Staff Notes
+              </span>
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: "#F59E0B22", color: "#F59E0B" }}
+              >
+                {convMessages.filter((m) => m.type === "note").length}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowNotesPanel(false)}
+              style={{ color: t.textSub }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Notes list */}
+          <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
+            {convMessages.filter((m) => m.type === "note").length === 0 ? (
+              <div
+                className="text-center py-4 text-xs"
+                style={{ color: t.textMuted }}
+              >
+                No internal notes yet. Add one below.
+              </div>
+            ) : (
+              convMessages
+                .filter((m) => m.type === "note")
+                .map((note) => {
+                  const author = users.find((u) => u.id === note.authorId);
+                  return (
+                    <div
+                      key={note.id}
+                      className="flex gap-2.5"
+                    >
+                      <div className="flex-shrink-0">
+                        <Avatar
+                          name={author?.name || "Unknown"}
+                          size="sm"
+                          color="#F59E0B"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className="text-xs font-semibold"
+                            style={{ color: t.text }}
+                          >
+                            {author?.name || "Unknown"}
+                          </span>
+                          <span
+                            className="text-[10px]"
+                            style={{ color: t.textMuted }}
+                          >
+                            {formatDate(note.createdAt)} {formatTime(note.createdAt)}
+                          </span>
+                        </div>
+                        <div
+                          className="text-sm leading-relaxed px-3 py-2 rounded-lg"
+                          style={{
+                            backgroundColor: "#F59E0B11",
+                            border: "1px solid #F59E0B33",
+                            color: t.text,
+                          }}
+                          dangerouslySetInnerHTML={{ __html: note.body }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+
+          {/* Quick add note */}
+          <div
+            className="px-6 py-3 border-t flex gap-2"
+            style={{ borderColor: "#F59E0B22" }}
+          >
+            <input
+              value={quickNote}
+              onChange={(e) => setQuickNote(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  if (!quickNote.trim()) return;
+                  sendMessage(conv.id, {
+                    type: "note",
+                    body: `<p>${quickNote.trim()}</p>`,
+                    authorType: "agent",
+                  });
+                  setQuickNote("");
+                }
+              }}
+              placeholder="Add an internal note... (Ctrl+Enter to save)"
+              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <button
+              onClick={() => {
+                if (!quickNote.trim()) return;
+                sendMessage(conv.id, {
+                  type: "note",
+                  body: `<p>${quickNote.trim()}</p>`,
+                  authorType: "agent",
+                });
+                setQuickNote("");
+              }}
+              disabled={!quickNote.trim()}
+              className="px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              style={{ backgroundColor: "#F59E0B" }}
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div
         className="border-t p-4"
