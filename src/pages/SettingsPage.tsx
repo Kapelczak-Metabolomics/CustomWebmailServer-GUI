@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import ProfileSection from "../components/ProfileSection";
+import RichTextEditor from "../components/RichTextEditor";
 import { useTheme } from "../theme";
 import { useStore } from "../store";
 import { api } from "../lib/api";
@@ -440,18 +441,13 @@ export default function SettingsPage() {
                       color: t.text,
                     }}
                   />
-                  <textarea
+                  <RichTextEditor
                     value={newReply.body}
-                    onChange={(e) =>
-                      setNewReply({ ...newReply, body: e.target.value })
+                    onChange={(html) =>
+                      setNewReply({ ...newReply, body: html })
                     }
-                    placeholder="Reply body"
-                    className="w-full min-h-[80px] px-3 py-2 rounded-lg text-sm outline-none resize-none"
-                    style={{
-                      backgroundColor: t.inputBg,
-                      border: `1px solid ${t.inputBorder}`,
-                      color: t.text,
-                    }}
+                    placeholder="Reply body..."
+                    minHeight={80}
                   />
                   <div className="flex justify-end gap-2">
                     <button
@@ -539,18 +535,13 @@ export default function SettingsPage() {
                   color: t.text,
                 }}
               />
-              <textarea
+              <RichTextEditor
                 value={editingReply.body}
-                onChange={(e) =>
-                  setEditingReply({ ...editingReply, body: e.target.value })
+                onChange={(html) =>
+                  setEditingReply({ ...editingReply, body: html })
                 }
-                placeholder="Reply body"
-                className="w-full min-h-[120px] px-3 py-2 rounded-lg text-sm outline-none resize-none"
-                style={{
-                  backgroundColor: t.inputBg,
-                  border: `1px solid ${t.inputBorder}`,
-                  color: t.text,
-                }}
+                placeholder="Reply body..."
+                minHeight={120}
               />
               <div className="flex justify-end gap-2">
                 <button

@@ -3,6 +3,7 @@ import { useTheme } from "../theme";
 import { api } from "../lib/api";
 import type { KnowledgeBaseArticle } from "../types";
 import { sanitizeHtml } from "../lib/sanitize";
+import RichTextEditor from "../components/RichTextEditor";
 import { Search, FileText, Send, Ticket, ArrowLeft, BookOpen, Star } from "lucide-react";
 
 interface PortalTicket {
@@ -442,16 +443,11 @@ export default function PortalPage() {
                   <label className="block text-xs font-medium mb-1.5" style={{ color: t.textMuted }}>
                     Message
                   </label>
-                  <textarea
+                  <RichTextEditor
                     value={form.body}
-                    onChange={(e) => setForm({ ...form, body: e.target.value })}
-                    required
-                    className="w-full min-h-[140px] px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
-                    style={{
-                      backgroundColor: t.inputBg,
-                      border: `1px solid ${t.inputBorder}`,
-                      color: t.text,
-                    }}
+                    onChange={(html) => setForm({ ...form, body: html })}
+                    placeholder="Describe your issue..."
+                    minHeight={140}
                   />
                 </div>
                 <button

@@ -18,6 +18,7 @@ import { Icon } from "./Icon";
 import ChecklistPanel from "./ChecklistPanel";
 import TimeTrackingPanel from "./TimeTrackingPanel";
 import SatisfactionRating from "./SatisfactionRating";
+import RichTextEditor from "./RichTextEditor";
 import {
   Inbox,
   MessageSquareWarning,
@@ -164,11 +165,11 @@ export default function ReadingPane() {
     if (!replyText.trim() && !pendingAttachments.length) return;
     const attachments = attachmentHtml();
     if (replyMode === "reply")
-      sendReply(conv.id, toHtml(replyText.trim()) + attachments);
+      sendReply(conv.id, replyText.trim() + attachments);
     else
       sendMessage(conv.id, {
         type: "note",
-        body: `<p>${replyText.trim()}</p>` + attachments,
+        body: replyText.trim() + attachments,
         authorType: "agent",
       });
     setReplyText("");
@@ -278,16 +279,10 @@ export default function ReadingPane() {
           <div className="w-fit max-w-full">
             {editing ? (
               <div className="flex flex-col gap-2 w-80">
-                <textarea
+                <RichTextEditor
                   value={editBody}
-                  onChange={(e) => setEditBody(e.target.value)}
-                  className="text-sm leading-relaxed px-4 py-3 rounded-2xl outline-none resize-y"
-                  style={{
-                    backgroundColor: t.inputBg,
-                    color: t.text,
-                    border: `1px solid ${t.inputBorder}`,
-                    minHeight: "80px",
-                  }}
+                  onChange={setEditBody}
+                  minHeight={80}
                 />
                 <div className="flex gap-2">
                   <button
@@ -949,7 +944,7 @@ export default function ReadingPane() {
                   <button
                     key={sr.id}
                     onClick={() => {
-                      setReplyText(stripHtml(sr.body));
+                      setReplyText(sr.body);
                       setShowSaved(false);
                     }}
                     className="w-full text-left px-3 py-2 text-xs border-b"
@@ -965,23 +960,15 @@ export default function ReadingPane() {
           </div>
         </div>
         <div className="relative">
-          <textarea
+          <RichTextEditor
             value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSend();
-            }}
+            onChange={setReplyText}
             placeholder={
               replyMode === "reply"
                 ? "Write a reply..."
                 : "Add an internal note..."
             }
-            className="w-full min-h-[110px] p-3 rounded-xl text-sm outline-none resize-none"
-            style={{
-              backgroundColor: t.readMain,
-              border: `1px solid ${t.inputBorder}`,
-              color: t.text,
-            }}
+            minHeight={110}
           />
           {pendingAttachments.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-3">
@@ -1064,17 +1051,14 @@ export default function ReadingPane() {
                 color: t.text,
               }}
             />
-            <textarea
-              value={fwdNote}
-              onChange={(e) => setFwdNote(e.target.value)}
-              placeholder="Optional note..."
-              className="w-full min-h-[80px] px-3 py-2 rounded-lg text-sm mb-4 outline-none resize-none"
-              style={{
-                backgroundColor: t.inputBg,
-                border: `1px solid ${t.inputBorder}`,
-                color: t.text,
-              }}
-            />
+            <div className="mb-4">
+              <RichTextEditor
+                value={fwdNote}
+                onChange={setFwdNote}
+                placeholder="Optional note..."
+                minHeight={80}
+              />
+            </div>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowForward(false)}

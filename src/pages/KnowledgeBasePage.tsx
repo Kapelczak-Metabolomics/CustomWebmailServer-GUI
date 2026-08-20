@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTheme } from "../theme";
 import { useStore } from "../store";
 import Layout from "../components/Layout";
+import RichTextEditor from "../components/RichTextEditor";
 import { formatDate } from "../lib/utils";
 import { sanitizeHtml } from "../lib/sanitize";
 import { Search, Plus, BookOpen, Eye, Edit3, Trash2, X } from "lucide-react";
@@ -270,16 +271,11 @@ export default function KnowledgeBasePage() {
                   color: t.text,
                 }}
               />
-              <textarea
+              <RichTextEditor
                 value={form.body}
-                onChange={(e) => setForm({ ...form, body: e.target.value })}
-                placeholder="Article body (HTML supported)"
-                className="w-full min-h-[200px] px-3 py-2 rounded-lg text-sm outline-none resize-none"
-                style={{
-                  backgroundColor: t.inputBg,
-                  border: `1px solid ${t.inputBorder}`,
-                  color: t.text,
-                }}
+                onChange={(html) => setForm({ ...form, body: html })}
+                placeholder="Article body..."
+                minHeight={200}
               />
             </div>
             <div className="flex justify-end gap-2">
