@@ -1,0 +1,1133 @@
+import { useState, useMemo, useEffect } from "react";
+import { useTheme } from "../theme";
+import { useStore } from "../store";
+import {
+  formatDate,
+  formatTime,
+  formatBytes,
+  getInitials,
+  stripHtml,
+} from "../lib/utils";
+import { sanitizeHtml } from "../lib/sanitize";
+import { toast } from "./ui/toastStore";
+import { api } from "../lib/api";
+import EmptyState from "./EmptyState";
+import Avatar from "./Avatar";
+import LabelBadge from "./LabelBadge";
+import { Icon } from "./Icon";
+import ChecklistPanel from "./ChecklistPanel";
+import TimeTrackingPanel from "./TimeTrackingPanel";
+import SatisfactionRating from "./SatisfactionRating";
+import RichTextEditor from "./RichTextEditor";
+import {
+  Inbox,
+  MessageSquareWarning,
+  Trash,
+  Archive,
+  CheckCircle2,
+  Circle,
+  Clock,
+  User,
+  Tag as TagIcon,
+  Paperclip,
+  Send,
+  Plus,
+  X,
+  ChevronDown,
+  ChevronLeft,
+  Reply,
+  MoreHorizontal,
+  StickyNote,
+} from "lucide-react";
+
+function toHtml(text: string) {
+  return text
+    .split(/\n+/)
+    .filter(Boolean)
+    .map((p) => `<p>${p.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)
+    .join("");
+}
+
+export default function ReadingPane() {
+  const { tokens: t } = useTheme();
+  const selectedId = useStore((s) => s.ui.selectedId);
+  const currentUser = useStore((s) => s.currentUser);
+  const conversations = useStore((s) => s.conversations);
+  const messages = useStore((s) => s.messages);
+  const contacts = useStore((s) => s.contacts);
+  const users = useStore((s) => s.users);
+  const tags = useStore((s) => s.tags);
+  const savedReplies = useStore((s) => s.savedReplies);
+  const mailboxes = useStore((s) => s.mailboxes);
+
+  const setStatus = useStore((s) => s.setStatus);
+  const setPriority = useStore((s) => s.setPriority);
+  const assign = useStore((s) => s.assign);
+  const changeFolder = useStore((s) => s.changeFolder);
+  const addTagToConversation = useStore((s) => s.addTagToConversation);
+  const removeTagFromConversation = useStore(
+    (s) => s.removeTagFromConversation,
+  );
+  const sendReply = useStore((s) => s.sendReply);
+  const sendMessage = useStore((s) => s.sendMessage);
+  const selectConversation = useStore((s) => s.selectConversation);
+  const toggleStar = useStore((s) => s.toggleStar);
+  const followConversation = useStore((s) => s.followConversation);
+  const unfollowConversation = useStore((s) => s.unfollowConversation);
+  const snoozeConversation = useStore((s) => s.snoozeConversation);
+  const forwardConversation = useStore((s) => s.forwardConversation);
+  const deleteConversation = useStore((s) => s.deleteConversation);
+  const deleteMessage = useStore((s) => s.deleteMessage);
+  const updateMessage = useStore((s) => s.updateMessage);
+
+  const [replyText, setReplyText] = useState("");
+  const [replyMode, setReplyMode] = useState<"reply" | "note">("reply");
+  const [pendingAttachments, setPendingAttachments] = useState<
+    {
+      name: string;
+      url: string;
+    }[]
+  >([]);
+
+  useEffect(() => {
+    setReplyText("");
+    setReplyMode("reply");
+    setPendingAttachments([]);
+  }, [selectedId]);
+  const [showTagMenu, setShowTagMenu] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [newTagInput, setNewTagInput] = useState("");
+  const [showForward, setShowForward] = useState(false);
+  const [showSnooze, setShowSnooze] = useState(false);
+  const [fwdTo, setFwdTo] = useState("");
+  const [fwdNote, setFwdNote] = useState("");
+  const [snoozeDate, setSnoozeDate] = useState("");
+  const [showNotesPanel, setShowNotesPanel] = useState(false);
+  const [showSidePanel, setShowSidePanel] = useState(false);
+  const [sidePanelTab, setSidePanelTab] = useState<"checklist" | "time" | "rating">("checklist");
+  const [quickNote, setQuickNote] = useState("");
+
+  const conversation = useMemo(
+    () => conversations.find((c) => c.id === selectedId),
+    [conversations, selectedId],
+  );
+  const convMessages = useMemo(
+    () =>
+      messages
+        .filter((m) => m.conversationId === selectedId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [messages, selectedId],
+  );
+
+  if (!conversation)
+    return (
+      <EmptyState
+        icon={<Inbox className="w-12 h-12" />}
+        title="No conversation selected"
+        message="Select a conversation from the list to view messages and reply."
+      />
+    );
+
+  const conv = conversation;
+
+  const customer = contacts.find((c) => c.id === conv.customerId);
+  const customerName = customer?.name || conv.customerId;
+  const mailbox = mailboxes.find((m) => m.id === conv.mailboxId);
+  const assignee = conv.assigneeId
+    ? users.find((u) => u.id === conv.assigneeId)
+    : null;
+  const tagMap = Object.fromEntries(tags.map((tag) => [tag.name, tag]));
+
+  function attachmentHtml() {
+    if (!pendingAttachments.length) return "";
+    return pendingAttachments
+      .map(
+        (a) =>
+          `<p><a href="${a.url}" target="_blank" rel="noopener noreferrer">${a.name}</a></p>`,
+      )
+      .join("");
+  }
+
+  async function handleAttach(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const { name, url } = await api.uploadAttachment(file);
+      setPendingAttachments((prev) => [...prev, { name, url }]);
+    } catch (err) {
+      console.error("Upload failed", err);
+      toast("Failed to upload attachment", "error");
+    }
+  }
+
+  function handleSend(andClose = false) {
+    if (!replyText.trim() && !pendingAttachments.length) return;
+    const attachments = attachmentHtml();
+    if (replyMode === "reply")
+      sendReply(conv.id, replyText.trim() + attachments);
+    else
+      sendMessage(conv.id, {
+        type: "note",
+        body: replyText.trim() + attachments,
+        authorType: "agent",
+      });
+    setReplyText("");
+    setPendingAttachments([]);
+    if (andClose) setStatus(conv.id, "closed");
+  }
+
+  async function handleForward() {
+    if (!fwdTo.trim()) return;
+    await forwardConversation(conv.id, fwdTo.trim(), fwdNote.trim());
+    setFwdTo("");
+    setFwdNote("");
+    setShowForward(false);
+  }
+
+  async function handleSnooze() {
+    if (!snoozeDate) return;
+    const until = new Date(snoozeDate).toISOString();
+    await snoozeConversation(conv.id, until);
+    setShowSnooze(false);
+    setSnoozeDate("");
+  }
+
+  async function handleTagSelect(name: string) {
+    const existing = tags.find(
+      (t) => t.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (existing) await addTagToConversation(conv.id, existing.id);
+    else {
+      const tag = await useStore.getState().createTag(name, "#6B7A96");
+      if (tag) await addTagToConversation(conv.id, tag.id);
+    }
+    setShowTagMenu(false);
+    setNewTagInput("");
+  }
+
+  const MessageBubble = ({ msg }: { msg: (typeof messages)[0] }) => {
+    const author =
+      users.find((u) => u.id === msg.authorId) ||
+      contacts.find((c) => c.id === msg.authorId);
+    const isMe = msg.authorId === currentUser?.id;
+    const isNote = msg.type === "note";
+    const [editing, setEditing] = useState(false);
+    const [editBody, setEditBody] = useState(msg.body);
+    return (
+      <div className={`flex gap-3 mb-6 group ${isMe ? "flex-row-reverse" : ""}`}>
+        <div className="flex-shrink-0">
+          <Avatar
+            name={author?.name || "Unknown"}
+            size="md"
+            color={isNote ? "#F59E0B" : undefined}
+          />
+        </div>
+        <div
+          className={`flex-1 min-w-0 flex flex-col ${
+            isMe ? "items-end" : "items-start"
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-semibold" style={{ color: t.text }}>
+              {author?.name || "Unknown"}
+            </span>
+            <span className="text-[10px]" style={{ color: t.textMuted }}>
+              {formatDate(msg.createdAt)} {formatTime(msg.createdAt)}
+            </span>
+            {msg.editedAt && (
+              <span className="text-[10px]" style={{ color: t.textFaint }}>
+                (edited)
+              </span>
+            )}
+            {msg.type === "note" && (
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: "#F59E0B22", color: "#F59E0B" }}
+              >
+                Internal note
+              </span>
+            )}
+            {isMe && (msg.type === "reply" || msg.type === "internal") && (
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => {
+                    setEditing(!editing);
+                    setEditBody(msg.body);
+                  }}
+                  className="text-[10px] px-1.5 py-0.5 rounded"
+                  style={{ color: t.textMuted, backgroundColor: t.inputBg }}
+                  title="Edit"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm("Delete this message?")) {
+                      deleteMessage(msg.id);
+                    }
+                  }}
+                  className="text-[10px] px-1.5 py-0.5 rounded"
+                  style={{ color: "#EF4444", backgroundColor: t.inputBg }}
+                  title="Delete"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="w-fit max-w-full">
+            {editing ? (
+              <div className="flex flex-col gap-2 w-80">
+                <RichTextEditor
+                  value={editBody}
+                  onChange={setEditBody}
+                  minHeight={80}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      updateMessage(msg.id, editBody);
+                      setEditing(false);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                    style={{ background: t.accent }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ backgroundColor: t.inputBg, color: t.text }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div
+                  className="text-sm leading-relaxed px-4 py-3 rounded-2xl"
+                  style={{
+                    backgroundColor: isMe
+                      ? t.accent
+                      : isNote
+                        ? "#F59E0B11"
+                        : t.readMain,
+                    color: isMe ? "#fff" : t.text,
+                    border: `1px solid ${
+                      isMe ? t.accent : isNote ? "#F59E0B44" : t.divider
+                    }`,
+                  }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.body) }}
+                />
+                {msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {msg.attachments.map((a) => (
+                      <a
+                        key={a.id}
+                        href={a.url}
+                        download
+                        className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg"
+                        style={{ backgroundColor: t.inputBg, color: t.textSub }}
+                      >
+                        <Paperclip className="w-3 h-3" /> {a.name}{" "}
+                        <span style={{ color: t.textMuted }}>
+                          ({formatBytes(a.size)})
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className="flex flex-col h-full w-full flex-1"
+      style={{ backgroundColor: t.readMain }}
+    >
+      <div
+        className="flex items-start justify-between px-6 py-4 border-b"
+        style={{ borderColor: t.divider, backgroundColor: t.readTopBg }}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <button
+              onClick={() => selectConversation(null)}
+              className="md:hidden p-1 rounded -ml-1"
+              style={{ color: t.textSub }}
+              aria-label="Back to list"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-base font-semibold" style={{ color: t.text }}>
+              {conv.subject}
+            </h2>
+            <button
+              onClick={() => toggleStar(conv.id)}
+              style={{ color: conv.starred ? "#F59E0B" : t.textFaint }}
+            >
+              <Icon.Star filled={conv.starred} />
+            </button>
+            <span
+              className="text-[10px] px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: t.badgeBg, color: t.textMuted }}
+            >
+              #{conv.number}
+            </span>
+            {conv.snoozeUntil && (
+              <span
+                className="text-[10px] px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: "#8B5CF622", color: "#8B5CF6" }}
+              >
+                Snoozed until {formatDate(conv.snoozeUntil)}
+              </span>
+            )}
+            <button
+              onClick={() =>
+                conv.followers.includes(currentUser?.id || "")
+                  ? unfollowConversation(conv.id)
+                  : followConversation(conv.id)
+              }
+              className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1"
+              style={{
+                backgroundColor: conv.followers.includes(currentUser?.id || "")
+                  ? `${t.accent}22`
+                  : t.badgeBg,
+                color: conv.followers.includes(currentUser?.id || "")
+                  ? t.accent
+                  : t.textMuted,
+              }}
+            >
+              {conv.followers.includes(currentUser?.id || "")
+                ? "Following"
+                : "Follow"}
+            </button>
+          </div>
+          <div
+            className="flex flex-wrap items-center gap-3 text-xs"
+            style={{ color: t.textMuted }}
+          >
+            <span>
+              From <strong style={{ color: t.text }}>{customerName}</strong>
+            </span>
+            <span>
+              to <strong style={{ color: t.text }}>{mailbox?.email}</strong>
+            </span>
+            <span>{convMessages.length} messages</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+          <button
+            onClick={() => setShowNotesPanel((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
+            style={{
+              backgroundColor: showNotesPanel ? "#F59E0B" : t.inputBg,
+              color: showNotesPanel ? "#fff" : t.textSub,
+            }}
+          >
+            <StickyNote className="w-3.5 h-3.5" />
+            Notes
+            {convMessages.filter((m) => m.type === "note").length > 0 && (
+              <span
+                className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px]"
+                style={{
+                  backgroundColor: showNotesPanel ? "#ffffff33" : "#F59E0B22",
+                  color: showNotesPanel ? "#fff" : "#F59E0B",
+                }}
+              >
+                {convMessages.filter((m) => m.type === "note").length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setShowSidePanel((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
+            style={{
+              backgroundColor: showSidePanel ? t.accent : t.inputBg,
+              color: showSidePanel ? "#fff" : t.textSub,
+            }}
+            title="Checklists, time tracking, ratings"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            Tools
+          </button>
+          <button
+            onClick={() => setReplyMode("reply")}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
+            style={{ backgroundColor: t.accent, color: "#fff" }}
+          >
+            <Reply className="w-3.5 h-3.5" /> Reply
+          </button>
+          <button
+            onClick={() => setShowMore((v) => !v)}
+            className="relative p-2 rounded-lg"
+            style={{ color: t.textSub, backgroundColor: t.inputBg }}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+          {showMore && (
+            <div
+              className="absolute right-6 top-16 w-48 rounded-xl z-40"
+              style={{
+                backgroundColor: t.card,
+                border: `1px solid ${t.cardBorder}`,
+                boxShadow: t.shadow,
+              }}
+            >
+              <button
+                onClick={() => {
+                  setShowSnooze(true);
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: t.textSub }}
+              >
+                <Clock className="w-3.5 h-3.5" /> Snooze
+              </button>
+              <button
+                onClick={() => {
+                  setShowForward(true);
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: t.textSub }}
+              >
+                <Icon.Forward /> Forward
+              </button>
+              <button
+                onClick={() => {
+                  changeFolder(conv.id, "archive");
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: t.textSub }}
+              >
+                <Archive className="w-3.5 h-3.5" /> Archive
+              </button>
+              <button
+                onClick={() => {
+                  setStatus(
+                    conv.id,
+                    conv.status === "closed" ? "open" : "closed",
+                  );
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: t.textSub }}
+              >
+                {conv.status === "closed" ? (
+                  <Circle className="w-3.5 h-3.5" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                )}{" "}
+                {conv.status === "closed" ? "Reopen" : "Close"}
+              </button>
+              <button
+                onClick={() => {
+                  setStatus(conv.id, "spam");
+                  changeFolder(conv.id, "spam");
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: t.textSub }}
+              >
+                <MessageSquareWarning className="w-3.5 h-3.5" /> Mark spam
+              </button>
+              <button
+                onClick={() => {
+                  changeFolder(conv.id, "trash");
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: "#EF4444" }}
+              >
+                <Trash className="w-3.5 h-3.5" /> Move to trash
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm("Permanently delete this conversation? This cannot be undone.")) {
+                    deleteConversation(conv.id);
+                  }
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: "#EF4444" }}
+              >
+                <Trash className="w-3.5 h-3.5" /> Delete permanently
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div
+        className="flex items-center gap-3 px-6 py-2 border-b flex-wrap"
+        style={{ borderColor: t.divider, backgroundColor: t.readLeftBg }}
+      >
+        <div className="flex items-center gap-1.5 text-xs">
+          <span style={{ color: t.textMuted }}>Status</span>
+          <select
+            value={conv.status}
+            onChange={(e) => setStatus(conv.id, e.target.value as any)}
+            className="px-2 py-1 rounded-md text-xs font-medium outline-none cursor-pointer"
+            style={{
+              backgroundColor: t.inputBg,
+              color: t.text,
+              border: `1px solid ${t.inputBorder}`,
+            }}
+          >
+            <option value="open">Open</option>
+            <option value="pending">Pending</option>
+            <option value="closed">Closed</option>
+            <option value="spam">Spam</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs">
+          <span style={{ color: t.textMuted }}>Priority</span>
+          <select
+            value={conv.priority}
+            onChange={(e) => setPriority(conv.id, e.target.value as any)}
+            className="px-2 py-1 rounded-md text-xs font-medium outline-none cursor-pointer"
+            style={{
+              backgroundColor: t.inputBg,
+              color: t.text,
+              border: `1px solid ${t.inputBorder}`,
+            }}
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs">
+          <User className="w-3.5 h-3.5" style={{ color: t.textMuted }} />
+          <select
+            value={conv.assigneeId || ""}
+            onChange={(e) => assign(conv.id, e.target.value || undefined)}
+            className="px-2 py-1 rounded-md text-xs font-medium outline-none cursor-pointer"
+            style={{
+              backgroundColor: t.inputBg,
+              color: t.text,
+              border: `1px solid ${t.inputBorder}`,
+            }}
+          >
+            <option value="">Unassigned</option>
+            {users
+              .filter((u) => u.role !== "customer")
+              .map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="flex-1" />
+        <div className="flex items-center gap-1.5 relative">
+          <TagIcon className="w-3.5 h-3.5" style={{ color: t.textMuted }} />
+          {conv.labels.map((label) =>
+            tagMap[label] ? (
+              <LabelBadge
+                key={label}
+                label={tagMap[label].name}
+                color={tagMap[label].color}
+                onRemove={() =>
+                  removeTagFromConversation(conv.id, tagMap[label].id)
+                }
+              />
+            ) : (
+              <LabelBadge key={label} label={label} onRemove={() => {}} />
+            ),
+          )}
+          <button
+            onClick={() => setShowTagMenu((v) => !v)}
+            className="p-1 rounded-md"
+            style={{ color: t.textSub, backgroundColor: t.inputBg }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+          {showTagMenu && (
+            <div
+              className="absolute right-0 top-full mt-2 w-56 rounded-xl z-40 p-2"
+              style={{
+                backgroundColor: t.card,
+                border: `1px solid ${t.cardBorder}`,
+                boxShadow: t.shadow,
+              }}
+            >
+              <div
+                className="text-[10px] uppercase tracking-wider mb-1 px-1"
+                style={{ color: t.textMuted }}
+              >
+                Add tag
+              </div>
+              {tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  onClick={() => handleTagSelect(tag.name)}
+                  className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2"
+                  style={{ color: t.textSub }}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: tag.color }}
+                  />{" "}
+                  {tag.name}
+                </button>
+              ))}
+              <div className="flex items-center gap-1 mt-1 px-1">
+                <input
+                  value={newTagInput}
+                  onChange={(e) => setNewTagInput(e.target.value)}
+                  placeholder="New tag..."
+                  className="flex-1 text-xs px-2 py-1 rounded-md outline-none"
+                  style={{
+                    backgroundColor: t.inputBg,
+                    border: `1px solid ${t.inputBorder}`,
+                    color: t.text,
+                  }}
+                />
+                <button
+                  onClick={() => newTagInput && handleTagSelect(newTagInput)}
+                  className="p-1 rounded-md"
+                  style={{ backgroundColor: t.accent, color: "#fff" }}
+                >
+                  <Send className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        {convMessages.map((msg) => (
+          <MessageBubble key={msg.id} msg={msg} />
+        ))}
+      </div>
+
+      {/* Internal Staff Notes Panel */}
+      {showNotesPanel && (
+        <div
+          className="border-t flex flex-col"
+          style={{
+            borderColor: t.divider,
+            backgroundColor: "#F59E0B08",
+            maxHeight: "40%",
+          }}
+        >
+          <div
+            className="flex items-center justify-between px-6 py-2 border-b"
+            style={{ borderColor: "#F59E0B22" }}
+          >
+            <div className="flex items-center gap-2">
+              <StickyNote className="w-4 h-4" style={{ color: "#F59E0B" }} />
+              <span
+                className="text-xs font-semibold"
+                style={{ color: t.text }}
+              >
+                Internal Staff Notes
+              </span>
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: "#F59E0B22", color: "#F59E0B" }}
+              >
+                {convMessages.filter((m) => m.type === "note").length}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowNotesPanel(false)}
+              style={{ color: t.textSub }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Notes list */}
+          <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
+            {convMessages.filter((m) => m.type === "note").length === 0 ? (
+              <div
+                className="text-center py-4 text-xs"
+                style={{ color: t.textMuted }}
+              >
+                No internal notes yet. Add one below.
+              </div>
+            ) : (
+              convMessages
+                .filter((m) => m.type === "note")
+                .map((note) => {
+                  const author = users.find((u) => u.id === note.authorId);
+                  return (
+                    <div
+                      key={note.id}
+                      className="flex gap-2.5"
+                    >
+                      <div className="flex-shrink-0">
+                        <Avatar
+                          name={author?.name || "Unknown"}
+                          size="sm"
+                          color="#F59E0B"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className="text-xs font-semibold"
+                            style={{ color: t.text }}
+                          >
+                            {author?.name || "Unknown"}
+                          </span>
+                          <span
+                            className="text-[10px]"
+                            style={{ color: t.textMuted }}
+                          >
+                            {formatDate(note.createdAt)} {formatTime(note.createdAt)}
+                          </span>
+                        </div>
+                        <div
+                          className="text-sm leading-relaxed px-3 py-2 rounded-lg"
+                          style={{
+                            backgroundColor: "#F59E0B11",
+                            border: "1px solid #F59E0B33",
+                            color: t.text,
+                          }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.body) }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+
+          {/* Quick add note */}
+          <div
+            className="px-6 py-3 border-t flex gap-2"
+            style={{ borderColor: "#F59E0B22" }}
+          >
+            <input
+              value={quickNote}
+              onChange={(e) => setQuickNote(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  if (!quickNote.trim()) return;
+                  sendMessage(conv.id, {
+                    type: "note",
+                    body: `<p>${quickNote.trim()}</p>`,
+                    authorType: "agent",
+                  });
+                  setQuickNote("");
+                }
+              }}
+              placeholder="Add an internal note... (Ctrl+Enter to save)"
+              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <button
+              onClick={() => {
+                if (!quickNote.trim()) return;
+                sendMessage(conv.id, {
+                  type: "note",
+                  body: `<p>${quickNote.trim()}</p>`,
+                  authorType: "agent",
+                });
+                setQuickNote("");
+              }}
+              disabled={!quickNote.trim()}
+              className="px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              style={{ backgroundColor: "#F59E0B" }}
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tools side panel: checklists, time tracking, satisfaction */}
+      {showSidePanel && (
+        <div
+          className="border-t flex flex-col"
+          style={{
+            borderColor: t.divider,
+            backgroundColor: t.card,
+            maxHeight: "320px",
+          }}
+        >
+          <div
+            className="flex items-center gap-1 px-4 py-2 border-b"
+            style={{ borderColor: t.divider }}
+          >
+            {(["checklist", "time", "rating"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setSidePanelTab(tab)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium capitalize"
+                style={{
+                  backgroundColor: sidePanelTab === tab ? t.accent : "transparent",
+                  color: sidePanelTab === tab ? "#fff" : t.textSub,
+                }}
+              >
+                {tab === "time" ? "Time Tracking" : tab === "rating" ? "Rating" : "Checklists"}
+              </button>
+            ))}
+          </div>
+          <div className="overflow-y-auto p-4">
+            {sidePanelTab === "checklist" && <ChecklistPanel conversationId={conv.id} />}
+            {sidePanelTab === "time" && <TimeTrackingPanel conversationId={conv.id} />}
+            {sidePanelTab === "rating" && (
+              <SatisfactionRating conversationId={conv.id} readonly />
+            )}
+          </div>
+        </div>
+      )}
+
+      <div
+        className="border-t p-4"
+        style={{ borderColor: t.divider, backgroundColor: t.readLeftBg }}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            onClick={() => setReplyMode("reply")}
+            className={`text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 ${
+              replyMode === "reply" ? "font-semibold" : ""
+            }`}
+            style={{
+              backgroundColor: replyMode === "reply" ? t.accent : t.inputBg,
+              color: replyMode === "reply" ? "#fff" : t.textSub,
+            }}
+          >
+            <Reply className="w-3.5 h-3.5" /> Reply
+          </button>
+          <button
+            onClick={() => setReplyMode("note")}
+            className={`text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 ${
+              replyMode === "note" ? "font-semibold" : ""
+            }`}
+            style={{
+              backgroundColor: replyMode === "note" ? "#F59E0B" : t.inputBg,
+              color: replyMode === "note" ? "#fff" : t.textSub,
+            }}
+          >
+            <Icon.Compose /> Note
+          </button>
+          <div className="flex-1" />
+          <div className="relative">
+            <button
+              onClick={() => setShowSaved((v) => !v)}
+              className="text-xs flex items-center gap-1 px-2 py-1.5 rounded-lg"
+              style={{ color: t.textSub }}
+            >
+              Saved replies <ChevronDown className="w-3 h-3" />
+            </button>
+            {showSaved && (
+              <div
+                className="absolute right-0 bottom-full mb-2 w-64 rounded-xl z-40 max-h-60 overflow-auto"
+                style={{
+                  backgroundColor: t.card,
+                  border: `1px solid ${t.cardBorder}`,
+                  boxShadow: t.shadow,
+                }}
+              >
+                {savedReplies.map((sr) => (
+                  <button
+                    key={sr.id}
+                    onClick={() => {
+                      setReplyText(sr.body);
+                      setShowSaved(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs border-b"
+                    style={{ color: t.textSub, borderColor: t.divider }}
+                  >
+                    <span className="font-medium" style={{ color: t.text }}>
+                      {sr.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="relative">
+          <RichTextEditor
+            value={replyText}
+            onChange={setReplyText}
+            placeholder={
+              replyMode === "reply"
+                ? "Write a reply..."
+                : "Add an internal note..."
+            }
+            minHeight={110}
+          />
+          {pendingAttachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {pendingAttachments.map((a, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs"
+                  style={{ backgroundColor: t.inputBg, color: t.textSub }}
+                >
+                  <Paperclip className="w-3 h-3" />
+                  {a.name}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center justify-between mt-2">
+            <div
+              className="flex items-center gap-2 text-xs"
+              style={{ color: t.textMuted }}
+            >
+              <label className="cursor-pointer">
+                <Paperclip className="w-4 h-4" />
+                <input type="file" className="hidden" onChange={handleAttach} />
+              </label>
+              <span>Ctrl + Enter to send</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleSend()}
+                disabled={!replyText.trim() && !pendingAttachments.length}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: t.accentGrad }}
+              >
+                Send {replyMode === "note" ? "Note" : "Reply"}
+              </button>
+              {replyMode === "reply" && (
+                <button
+                  onClick={() => handleSend(true)}
+                  disabled={!replyText.trim() && !pendingAttachments.length}
+                  className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                  style={{
+                    color: t.textSub,
+                    backgroundColor: t.inputBg,
+                    border: `1px solid ${t.inputBorder}`,
+                  }}
+                >
+                  Send & Close
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showForward && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
+          <div
+            className="w-full max-w-md rounded-2xl p-5"
+            style={{ backgroundColor: t.readLeftBg, boxShadow: t.shadow }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm" style={{ color: t.text }}>
+                Forward conversation
+              </h3>
+              <button
+                onClick={() => setShowForward(false)}
+                style={{ color: t.textSub }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              value={fwdTo}
+              onChange={(e) => setFwdTo(e.target.value)}
+              placeholder="Forward to (email address)"
+              className="w-full px-3 py-2 rounded-lg text-sm mb-3 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <div className="mb-4">
+              <RichTextEditor
+                value={fwdNote}
+                onChange={setFwdNote}
+                placeholder="Optional note..."
+                minHeight={80}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowForward(false)}
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{ color: t.textSub }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleForward}
+                disabled={!fwdTo.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: t.accentGrad }}
+              >
+                Forward
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSnooze && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
+          <div
+            className="w-full max-w-sm rounded-2xl p-5"
+            style={{ backgroundColor: t.readLeftBg, boxShadow: t.shadow }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm" style={{ color: t.text }}>
+                Snooze until
+              </h3>
+              <button
+                onClick={() => setShowSnooze(false)}
+                style={{ color: t.textSub }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              type="date"
+              value={snoozeDate}
+              onChange={(e) => setSnoozeDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg text-sm mb-4 outline-none"
+              style={{
+                backgroundColor: t.inputBg,
+                border: `1px solid ${t.inputBorder}`,
+                color: t.text,
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowSnooze(false)}
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{ color: t.textSub }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSnooze}
+                disabled={!snoozeDate}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: t.accentGrad }}
+              >
+                Snooze
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
