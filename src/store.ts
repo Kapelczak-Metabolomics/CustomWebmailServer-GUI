@@ -113,6 +113,7 @@ interface StoreState {
       mailboxId: string;
       customerId: string;
       body?: string;
+      internalNote?: string;
     },
   ) => Promise<Conversation>;
   setComposeOpen: (open: boolean) => void;
@@ -614,6 +615,7 @@ export const useStore = create<StoreState>((set, get) => ({
       priority: data.priority || "medium",
       source: data.source || "manual",
       body: data.body,
+      internalNote: data.internalNote,
     });
     set((state) => ({
       conversations: [conversation, ...state.conversations],
