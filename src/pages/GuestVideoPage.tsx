@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useParams } from "react-router-dom";
 import { useTheme } from "../theme";
 import { api } from "../lib/api";
 import { io, type Socket } from "socket.io-client";
@@ -61,14 +62,16 @@ export default function GuestVideoPage() {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
+  const pendingCandidatesRef = useRef<Record<string, RTCIceCandidateInit[]>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const guestIdRef = useRef<string | null>(null);
   const guestNameRef = useRef<string>("");
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Get room ID from URL
-  const roomId = new URLSearchParams(window.location.search).get("room") || "";
+  // Get room ID from URL query param or route param
+  const params = useParams();
+  const roomId = params.roomId || new URLSearchParams(window.location.search).get("room") || "";
 
   // Fetch room info on mount
   useEffect(() => {
@@ -88,6 +91,19 @@ export default function GuestVideoPage() {
         setError("Meeting not found");
       });
   }, [roomId]);
+
+  const flushPendingCandidates = useCallback((userId: string) => {
+    const pending = pendingCandidatesRef.current[userId];
+    if (!pending || pending.length === 0) return;
+    const pc = peersRef.current[userId];
+    if (!pc) return;
+    for (const candidate of pending) {
+      pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) => {
+        console.warn("Flushed ICE add error:", e);
+      });
+    }
+    pendingCandidatesRef.current[userId] = [];
+  }, []);
 
   const fetchIceServers = useCallback(async (): Promise<RTCIceServer[]> => {
     const iceServers: RTCIceServer[] = [
@@ -153,7 +169,12 @@ export default function GuestVideoPage() {
         });
       };
 
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[Guest WebRTC] ICE state (${userId}):`, pc.iceConnectionState);
+      };
+
       pc.onconnectionstatechange = () => {
+        console.log(`[Guest WebRTC] Connection state (${userId}):`, pc.connectionState);
         setParticipants((prev) =>
           prev.map((p) =>
             p.userId === userId
@@ -161,7 +182,11 @@ export default function GuestVideoPage() {
               : p,
           ),
         );
-        if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+        if (pc.connectionState === "failed") {
+          console.warn(`[Guest WebRTC] Connection failed for ${userId}, restarting ICE...`);
+          pc.restartIce();
+        }
+        if (pc.connectionState === "closed") {
           const pc2 = peersRef.current[userId];
           if (pc2) {
             pc2.close();
@@ -257,6 +282,7 @@ export default function GuestVideoPage() {
           ]);
           const pc = await createPeer(senderId);
           await pc.setRemoteDescription(offer);
+          flushPendingCandidates(senderId);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           socket.emit("video-answer", {
@@ -273,6 +299,8 @@ export default function GuestVideoPage() {
           const pc = peersRef.current[senderId];
           if (pc && pc.signalingState === "have-local-offer") {
             await pc.setRemoteDescription(answer);
+            // Flush buffered candidates
+            flushPendingCandidates(senderId);
           }
         },
       );
@@ -281,17 +309,17 @@ export default function GuestVideoPage() {
         "ice-candidate",
         async ({ senderId, candidate }: { senderId: string; candidate: RTCIceCandidateInit }) => {
           const pc = peersRef.current[senderId];
-          if (pc) {
+          if (pc && pc.remoteDescription) {
             try {
-              if (pc.remoteDescription) {
-                await pc.addIceCandidate(new RTCIceCandidate(candidate));
-              } else {
-                (pc as any)._pendingCandidates = (pc as any)._pendingCandidates || [];
-                (pc as any)._pendingCandidates.push(candidate);
-              }
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
             } catch (e) {
               console.warn("ICE add error:", e);
             }
+          } else {
+            if (!pendingCandidatesRef.current[senderId]) {
+              pendingCandidatesRef.current[senderId] = [];
+            }
+            pendingCandidatesRef.current[senderId].push(candidate);
           }
         },
       );
@@ -349,6 +377,7 @@ export default function GuestVideoPage() {
   function teardown() {
     Object.values(peersRef.current).forEach((pc) => pc.close());
     peersRef.current = {};
+    pendingCandidatesRef.current = {};
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
@@ -524,6 +553,21 @@ export default function GuestVideoPage() {
               <p className="text-xs text-center" style={{ color: t.textMuted }}>
                 You will be asked to allow camera and microphone access.
               </p>
+              <div className="text-center pt-2 border-t" style={{ borderColor: t.divider }}>
+                <p className="text-xs mb-2" style={{ color: t.textMuted }}>
+                  Have an account?
+                </p>
+                <button
+                  onClick={() => {
+                    const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+                    window.location.href = `/login?redirect=${redirect}`;
+                  }}
+                  className="text-xs font-medium"
+                  style={{ color: t.accent }}
+                >
+                  Sign in to join as agent
+                </button>
+              </div>
             </div>
           )}
         </div>

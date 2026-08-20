@@ -89,6 +89,7 @@ export default function VideoPage() {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
+  const pendingCandidatesRef = useRef<Record<string, RTCIceCandidateInit[]>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const activeRoomRef = useRef<string | null>(null);
@@ -170,6 +171,8 @@ export default function VideoPage() {
         ]);
         const pc = await createPeer(senderId);
         await pc.setRemoteDescription(offer);
+        // Flush any buffered ICE candidates
+        flushPendingCandidates(senderId);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("video-answer", {
@@ -192,6 +195,7 @@ export default function VideoPage() {
         const pc = peersRef.current[senderId];
         if (pc && pc.signalingState === "have-local-offer") {
           await pc.setRemoteDescription(answer);
+          flushPendingCandidates(senderId);
         }
       },
     );
@@ -206,18 +210,18 @@ export default function VideoPage() {
         candidate: RTCIceCandidateInit;
       }) => {
         const pc = peersRef.current[senderId];
-        if (pc) {
+        if (pc && pc.remoteDescription) {
           try {
-            if (pc.remoteDescription) {
-              await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            } else {
-              // Buffer candidates if remote description not set yet
-              (pc as any)._pendingCandidates = (pc as any)._pendingCandidates || [];
-              (pc as any)._pendingCandidates.push(candidate);
-            }
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
           } catch (e) {
             console.warn("ICE add error:", e);
           }
+        } else {
+          // Buffer candidates — peer may not exist yet or remote desc not set
+          if (!pendingCandidatesRef.current[senderId]) {
+            pendingCandidatesRef.current[senderId] = [];
+          }
+          pendingCandidatesRef.current[senderId].push(candidate);
         }
       },
     );
@@ -255,6 +259,20 @@ export default function VideoPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
+
+  // Flush buffered ICE candidates for a peer
+  const flushPendingCandidates = useCallback((userId: string) => {
+    const pending = pendingCandidatesRef.current[userId];
+    if (!pending || pending.length === 0) return;
+    const pc = peersRef.current[userId];
+    if (!pc) return;
+    for (const candidate of pending) {
+      pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) => {
+        console.warn("Flushed ICE add error:", e);
+      });
+    }
+    pendingCandidatesRef.current[userId] = [];
+  }, []);
 
   // Fetch TURN credentials
   const fetchIceServers = useCallback(async (): Promise<RTCIceServer[]> => {
@@ -329,7 +347,12 @@ export default function VideoPage() {
         });
       };
 
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[WebRTC] ICE connection state (${userId}):`, pc.iceConnectionState);
+      };
+
       pc.onconnectionstatechange = () => {
+        console.log(`[WebRTC] Connection state (${userId}):`, pc.connectionState);
         setParticipants((prev) =>
           prev.map((p) =>
             p.userId === userId
@@ -337,7 +360,11 @@ export default function VideoPage() {
               : p,
           ),
         );
-        if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+        if (pc.connectionState === "failed") {
+          console.warn(`[WebRTC] Connection failed for ${userId}, attempting restart...`);
+          pc.restartIce();
+        }
+        if (pc.connectionState === "closed") {
           const pc2 = peersRef.current[userId];
           if (pc2) {
             pc2.close();
@@ -355,6 +382,7 @@ export default function VideoPage() {
   function teardown() {
     Object.values(peersRef.current).forEach((pc) => pc.close());
     peersRef.current = {};
+    pendingCandidatesRef.current = {};
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
     screenStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -547,13 +575,13 @@ export default function VideoPage() {
 
   function copyInvite() {
     if (!activeRoom) return;
-    const url = `${window.location.origin}/video?room=${activeRoom.id}`;
+    const url = `${window.location.origin}/join/${activeRoom.id}`;
     navigator.clipboard.writeText(url);
   }
 
   function copyGuestInvite() {
     if (!activeRoom) return;
-    const url = `${window.location.origin}/video?room=${activeRoom.id}&guest=1`;
+    const url = `${window.location.origin}/join/${activeRoom.id}`;
     navigator.clipboard.writeText(url);
     setToast("Guest link copied!");
     setTimeout(() => setToast(""), 3000);
@@ -668,17 +696,8 @@ export default function VideoPage() {
       .catch(() => null);
   }, []);
 
-  // Auto-join if room param in URL
-  useEffect(() => {
-    if (joined || rooms.length === 0) return;
-    const params = new URLSearchParams(window.location.search);
-    const roomId = params.get("room");
-    if (roomId) {
-      const room = rooms.find((r) => r.id === roomId);
-      if (room) joinRoom(room);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rooms, joined]);
+  // Note: direct meeting links go to /join/:roomId (GuestVideoPage)
+  // Authenticated users join from the meeting list in the sidebar
 
   // Cleanup on unmount
   useEffect(() => {

@@ -24,7 +24,11 @@ export default function LoginPage() {
     setLoading(true);
     const ok = await login(email, password);
     setLoading(false);
-    if (ok) navigate("/");
+    if (ok) {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get("redirect");
+      navigate(redirect || "/");
+    }
     else setError("Invalid email or password.");
   }
 

@@ -130,13 +130,14 @@ export default function App() {
             <Route
               path="/video"
               element={
-                new URLSearchParams(window.location.search).get("guest") === "1"
+                new URLSearchParams(window.location.search).get("room")
                   ? <GuestVideoPage />
                   : <ProtectedRoute allowed={["admin", "agent"]}>
                       <VideoPage />
                     </ProtectedRoute>
               }
             />
+            <Route path="/join/:roomId" element={<GuestVideoPage />} />
             <Route path="/portal" element={<PortalPage />} />
           </Routes>
           <ComposeModal />

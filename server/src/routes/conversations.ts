@@ -108,8 +108,9 @@ router.get("/:id", async (req, res) => {
 });
 
 router.post("/", async (req: AuthRequest, res) => {
-  const { subject, mailboxId, contactId, status, priority, source, body, to } =
+  const { subject, mailboxId, contactId, status, priority, source, body, to, internalNote } =
     req.body;
+  const userId = req.user?.id;
   const count = await prisma.conversation.count({ where: { mailboxId } });
   const conv = await prisma.conversation.create({
     data: {
@@ -120,17 +121,28 @@ router.post("/", async (req: AuthRequest, res) => {
       status: status || "open",
       priority: priority || "medium",
       source: source || "manual",
-      messages: body
-        ? {
-            create: {
-              type: "customer",
-              body,
-              bodyText: body,
-              to: to || [],
-              authorType: "customer",
-            },
-          }
-        : undefined,
+      messages: {
+        create: [
+          ...(body
+            ? [{
+                type: "customer",
+                body,
+                bodyText: body,
+                to: to || [],
+                authorType: "customer",
+              }]
+            : []),
+          ...(internalNote && internalNote.trim()
+            ? [{
+                type: "note",
+                body: internalNote.trim(),
+                bodyText: internalNote.trim(),
+                authorId: userId || null,
+                authorType: "agent",
+              }]
+            : []),
+        ],
+      },
     },
     include: includeFull,
   });
