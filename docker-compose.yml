@@ -25,15 +25,19 @@ services:
 
   coturn:
     image: coturn/coturn
-    command:
-      - "-n"
-      - "-f"
-      - "-r"
-      - "${TURN_REALM:-isotopiq.local}"
-      - "--use-auth-secret"
-      - "--static-auth-secret=${TURN_SECRET:-change-me}"
-      - "--no-cli"
-      - "--listening-port=18478"
+    command: >-
+      sh -c "exec turnserver -n -f
+      --realm=$${TURN_REALM:-isotopiq.local}
+      --use-auth-secret
+      --static-auth-secret=$${TURN_SECRET:-change-me}
+      --cli-password=$${TURN_SECRET:-change-me}
+      --listening-port=18478
+      --listening-ip=0.0.0.0
+      --relay-ip=0.0.0.0"
+    entrypoint: [""]
+    environment:
+      - TURN_REALM=${TURN_REALM:-isotopiq.local}
+      - TURN_SECRET=${TURN_SECRET:-change-me}
     ports:
       - "18478:18478/udp"
       - "18478:18478/tcp"
