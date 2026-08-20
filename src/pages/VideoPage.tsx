@@ -19,6 +19,11 @@ import {
   X,
   UserCircle,
   Trash2,
+  MessageSquare,
+  Circle,
+  Square,
+  Share2,
+  Monitor,
 } from "lucide-react";
 
 interface VideoUser {
@@ -35,6 +40,8 @@ interface VideoRoom {
   name: string;
   createdBy: string;
   active: boolean;
+  allowGuests: boolean;
+  recordingActive: boolean;
   members: VideoRoomMember[];
 }
 
@@ -45,6 +52,14 @@ interface RemotePeer {
   audioEnabled: boolean;
   videoEnabled: boolean;
   connectionState: RTCPeerConnectionState;
+}
+
+interface ChatMsg {
+  id: string;
+  userId: string | null;
+  guestName: string | null;
+  body: string;
+  createdAt: string;
 }
 
 export default function VideoPage() {
@@ -62,24 +77,34 @@ export default function VideoPage() {
   const [participants, setParticipants] = useState<RemotePeer[]>([]);
   const [showInvite, setShowInvite] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingError, setRecordingError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<VideoRoom | null>(null);
   const [toast, setToast] = useState("");
+  const [screenSharing, setScreenSharing] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const currentUserRef = useRef<string | null>(null);
   const usersRef = useRef(users);
-  usersRef.current = users;
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
+  usersRef.current = users;
   currentUserRef.current = currentUser?.id || null;
 
   // Connect socket once on mount
   useEffect(() => {
     if (!currentUser) return;
-    const token = getCookie("token") || "";
+    const token = localStorage.getItem("token") || getCookie("token") || "";
     const socket = io("/", {
       transports: ["websocket"],
       auth: { token },
@@ -94,7 +119,7 @@ export default function VideoPage() {
         ...prev.filter((p) => p.userId !== userId),
         {
           userId,
-          userName: peerUser?.name || "User",
+          userName: peerUser?.name || "Guest",
           stream: null,
           audioEnabled: true,
           videoEnabled: true,
@@ -102,7 +127,7 @@ export default function VideoPage() {
         },
       ]);
       // Create offer to the new user
-      const pc = createPeer(userId);
+      const pc = await createPeer(userId);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       socket.emit("video-offer", {
@@ -136,14 +161,14 @@ export default function VideoPage() {
           ...prev.filter((p) => p.userId !== senderId),
           {
             userId: senderId,
-            userName: peerUser?.name || "User",
+            userName: peerUser?.name || "Guest",
             stream: null,
             audioEnabled: true,
             videoEnabled: true,
             connectionState: "new",
           },
         ]);
-        const pc = createPeer(senderId);
+        const pc = await createPeer(senderId);
         await pc.setRemoteDescription(offer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -181,9 +206,15 @@ export default function VideoPage() {
         candidate: RTCIceCandidateInit;
       }) => {
         const pc = peersRef.current[senderId];
-        if (pc && pc.remoteDescription) {
+        if (pc) {
           try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            if (pc.remoteDescription) {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } else {
+              // Buffer candidates if remote description not set yet
+              (pc as any)._pendingCandidates = (pc as any)._pendingCandidates || [];
+              (pc as any)._pendingCandidates.push(candidate);
+            }
           } catch (e) {
             console.warn("ICE add error:", e);
           }
@@ -193,21 +224,27 @@ export default function VideoPage() {
 
     socket.on("room-deleted", ({ roomId }: { roomId: string }) => {
       if (activeRoomRef.current === roomId) {
-        // Tear down active meeting
-        Object.values(peersRef.current).forEach((pc) => pc.close());
-        peersRef.current = {};
-        localStreamRef.current?.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-        if (localVideoRef.current) localVideoRef.current.srcObject = null;
-        activeRoomRef.current = null;
-        setActiveRoom(null);
-        setJoined(false);
-        setParticipants([]);
+        teardown();
         setToast("Meeting ended by host");
         setTimeout(() => setToast(""), 3000);
       }
-      // Remove from room list
       setRooms((prev) => prev.filter((r) => r.id !== roomId));
+    });
+
+    // Video room chat
+    socket.on("video-chat", (msg: ChatMsg) => {
+      setChatMessages((prev) => [...prev, msg]);
+    });
+
+    // Recording status
+    socket.on("recording-status", ({ active }: { active: boolean }) => {
+      setIsRecording(active);
+      if (active) {
+        setToast("Recording started");
+      } else {
+        setToast("Recording stopped");
+      }
+      setTimeout(() => setToast(""), 3000);
     });
 
     return () => {
@@ -219,76 +256,118 @@ export default function VideoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
 
-  const createPeer = useCallback((userId: string) => {
-    // Use public Google STUN servers; add TURN if available and reachable
+  // Fetch TURN credentials
+  const fetchIceServers = useCallback(async (): Promise<RTCIceServer[]> => {
     const iceServers: RTCIceServer[] = [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
     ];
-
-    const pc = new RTCPeerConnection({ iceServers });
-
-    // Add local tracks
-    const stream = localStreamRef.current;
-    if (stream) {
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-    }
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate && socketRef.current) {
-        socketRef.current.emit("ice-candidate", {
-          roomId: activeRoomRef.current,
-          candidate: e.candidate,
-          targetId: userId,
+    try {
+      const turnConfig = await fetch("/api/video/turn", {
+        headers: {
+          ...(localStorage.getItem("token")
+            ? { Authorization: `Bearer ${localStorage.getItem("token")}` }
+            : {}),
+        },
+      }).then((r) => r.json());
+      if (turnConfig.urls && turnConfig.username && turnConfig.credential) {
+        iceServers.push({
+          urls: turnConfig.urls,
+          username: turnConfig.username,
+          credential: turnConfig.credential,
         });
       }
-    };
-
-    pc.ontrack = (e) => {
-      setParticipants((prev) => {
-        const existing = prev.find((p) => p.userId === userId);
-        if (existing) {
-          return prev.map((p) =>
-            p.userId === userId
-              ? { ...p, stream: e.streams[0] }
-              : p,
-          );
-        }
-        const peerUser = usersRef.current.find((u) => u.id === userId);
-        return [
-          ...prev,
-          {
-            userId,
-            userName: peerUser?.name || "User",
-            stream: e.streams[0],
-            audioEnabled: true,
-            videoEnabled: true,
-            connectionState: "connected",
-          },
-        ];
-      });
-    };
-
-    pc.onconnectionstatechange = () => {
-      setParticipants((prev) =>
-        prev.map((p) =>
-          p.userId === userId
-            ? { ...p, connectionState: pc.connectionState }
-            : p,
-        ),
-      );
-      if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-        const pc2 = peersRef.current[userId];
-        if (pc2) {
-          pc2.close();
-          delete peersRef.current[userId];
-        }
-      }
-    };
-
-    peersRef.current[userId] = pc;
-    return pc;
+    } catch (e) {
+      console.warn("Failed to fetch TURN config:", e);
+    }
+    return iceServers;
   }, []);
+
+  const createPeer = useCallback(
+    async (userId: string) => {
+      const iceServers = await fetchIceServers();
+      const pc = new RTCPeerConnection({ iceServers });
+
+      // Add local tracks
+      const stream = localStreamRef.current;
+      if (stream) {
+        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      }
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate && socketRef.current) {
+          socketRef.current.emit("ice-candidate", {
+            roomId: activeRoomRef.current,
+            candidate: e.candidate,
+            targetId: userId,
+          });
+        }
+      };
+
+      pc.ontrack = (e) => {
+        setParticipants((prev) => {
+          const existing = prev.find((p) => p.userId === userId);
+          if (existing) {
+            return prev.map((p) =>
+              p.userId === userId
+                ? { ...p, stream: e.streams[0] }
+                : p,
+            );
+          }
+          const peerUser = usersRef.current.find((u) => u.id === userId);
+          return [
+            ...prev,
+            {
+              userId,
+              userName: peerUser?.name || "Guest",
+              stream: e.streams[0],
+              audioEnabled: true,
+              videoEnabled: true,
+              connectionState: "connected",
+            },
+          ];
+        });
+      };
+
+      pc.onconnectionstatechange = () => {
+        setParticipants((prev) =>
+          prev.map((p) =>
+            p.userId === userId
+              ? { ...p, connectionState: pc.connectionState }
+              : p,
+          ),
+        );
+        if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+          const pc2 = peersRef.current[userId];
+          if (pc2) {
+            pc2.close();
+            delete peersRef.current[userId];
+          }
+        }
+      };
+
+      peersRef.current[userId] = pc;
+      return pc;
+    },
+    [fetchIceServers],
+  );
+
+  function teardown() {
+    Object.values(peersRef.current).forEach((pc) => pc.close());
+    peersRef.current = {};
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    localStreamRef.current = null;
+    screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+    screenStreamRef.current = null;
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    activeRoomRef.current = null;
+    setActiveRoom(null);
+    setJoined(false);
+    setParticipants([]);
+    setIsRecording(false);
+    setScreenSharing(false);
+    stopRecording();
+  }
 
   async function joinRoom(room: VideoRoom) {
     setLoading(true);
@@ -305,21 +384,31 @@ export default function VideoPage() {
       setJoined(true);
       setMicOn(true);
       setCamOn(true);
-
-      // Set srcObject and ensure playback
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true;
-        try {
-          await localVideoRef.current.play();
-        } catch (e) {
-          console.warn("Autoplay prevented:", e);
-        }
-      }
+      setIsRecording(room.recordingActive || false);
 
       // Join the socket room and register with the backend
       socketRef.current?.emit("join-room", room.id);
       await api.joinVideoRoom(room.id);
+
+      // Load existing chat messages
+      try {
+        const msgs = await api.getVideoRoomMessages(room.id);
+        setChatMessages((msgs as ChatMsg[]) || []);
+      } catch {
+        setChatMessages([]);
+      }
+
+      // Set srcObject AFTER the video element is rendered
+      // Use requestAnimationFrame to wait for DOM update
+      requestAnimationFrame(() => {
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.muted = true;
+          localVideoRef.current.play().catch((e) => {
+            console.warn("Autoplay prevented:", e);
+          });
+        }
+      });
     } catch (err: any) {
       console.error("Failed to join:", err);
       setError(
@@ -329,7 +418,6 @@ export default function VideoPage() {
             ? "No camera or microphone found. Please connect a device and try again."
             : "Failed to join meeting: " + (err?.message || "Unknown error"),
       );
-      // Clean up partial state
       localStreamRef.current?.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
       activeRoomRef.current = null;
@@ -360,33 +448,13 @@ export default function VideoPage() {
     const roomId = activeRoomRef.current;
     socketRef.current?.emit("leave-room", roomId);
     if (roomId) api.leaveVideoRoom(roomId).catch(() => {});
-    Object.values(peersRef.current).forEach((pc) => pc.close());
-    peersRef.current = {};
-    localStreamRef.current?.getTracks().forEach((track) => track.stop());
-    localStreamRef.current = null;
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-    activeRoomRef.current = null;
-    setActiveRoom(null);
-    setJoined(false);
-    setParticipants([]);
+    teardown();
   }
 
   async function deleteRoom(room: VideoRoom) {
     try {
       await api.deleteVideoRoom(room.id);
-      // If deleting the active room, tear down
-      if (activeRoomRef.current === room.id) {
-        socketRef.current?.emit("leave-room", room.id);
-        Object.values(peersRef.current).forEach((pc) => pc.close());
-        peersRef.current = {};
-        localStreamRef.current?.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-        if (localVideoRef.current) localVideoRef.current.srcObject = null;
-        activeRoomRef.current = null;
-        setActiveRoom(null);
-        setJoined(false);
-        setParticipants([]);
-      }
+      if (activeRoomRef.current === room.id) teardown();
       setRooms((prev) => prev.filter((r) => r.id !== room.id));
       setToast("Meeting deleted");
       setTimeout(() => setToast(""), 3000);
@@ -416,11 +484,182 @@ export default function VideoPage() {
     }
   }
 
+  async function toggleScreenShare() {
+    if (screenSharing) {
+      // Stop screen share, restore camera
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+      const stream = localStreamRef.current;
+      if (stream && localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      // Update peers to use camera track again
+      const videoTrack = stream?.getVideoTracks()[0];
+      if (videoTrack) {
+        Object.values(peersRef.current).forEach((pc) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+          if (sender) sender.replaceTrack(videoTrack);
+        });
+      }
+      setScreenSharing(false);
+    } else {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
+        screenStreamRef.current = screenStream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = screenStream;
+        }
+        // Update peers to use screen track
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (screenTrack) {
+          Object.values(peersRef.current).forEach((pc) => {
+            const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+            if (sender) sender.replaceTrack(screenTrack);
+          });
+        }
+        // When user stops sharing via browser UI
+        screenTrack.onended = () => {
+          setScreenSharing(false);
+          screenStreamRef.current = null;
+          const stream = localStreamRef.current;
+          if (stream && localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+          const videoTrack = stream?.getVideoTracks()[0];
+          if (videoTrack) {
+            Object.values(peersRef.current).forEach((pc) => {
+              const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+              if (sender) sender.replaceTrack(videoTrack);
+            });
+          }
+        };
+        setScreenSharing(true);
+      } catch (err) {
+        console.error("Screen share failed:", err);
+        setToast("Screen share failed");
+        setTimeout(() => setToast(""), 3000);
+      }
+    }
+  }
+
   function copyInvite() {
     if (!activeRoom) return;
     const url = `${window.location.origin}/video?room=${activeRoom.id}`;
     navigator.clipboard.writeText(url);
   }
+
+  function copyGuestInvite() {
+    if (!activeRoom) return;
+    const url = `${window.location.origin}/video?room=${activeRoom.id}&guest=1`;
+    navigator.clipboard.writeText(url);
+    setToast("Guest link copied!");
+    setTimeout(() => setToast(""), 3000);
+  }
+
+  // Recording
+  function startRecording() {
+    setRecordingError("");
+    const stream = localStreamRef.current;
+    if (!stream) {
+      setRecordingError("No media stream to record");
+      return;
+    }
+
+    // Combine local + remote streams for recording
+    const combinedStream = new MediaStream();
+    stream.getTracks().forEach((track) => combinedStream.addTrack(track));
+    participants.forEach((p) => {
+      if (p.stream) {
+        p.stream.getTracks().forEach((track) => combinedStream.addTrack(track));
+      }
+    });
+
+    try {
+      const recorder = new MediaRecorder(combinedStream, {
+        mimeType: "video/webm;codecs=vp9,opus",
+      });
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        const blob = new Blob(recordedChunksRef.current, {
+          type: "video/webm",
+        });
+        // Upload the recording
+        const file = new File([blob], `recording-${activeRoomRef.current}.webm`, {
+          type: "video/webm",
+        });
+        try {
+          const { url } = await api.uploadAttachment(file);
+          if (activeRoomRef.current) {
+            await api.toggleVideoRecording(activeRoomRef.current, false, url);
+          }
+          setToast("Recording saved");
+          setTimeout(() => setToast(""), 3000);
+        } catch (err) {
+          console.error("Failed to save recording:", err);
+          setRecordingError("Failed to save recording");
+        }
+      };
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      // Notify via socket
+      socketRef.current?.emit("recording-toggle", {
+        roomId: activeRoomRef.current,
+        active: true,
+      });
+      // Also persist via REST
+      if (activeRoomRef.current) {
+        api.toggleVideoRecording(activeRoomRef.current, true).catch(() => {});
+      }
+    } catch (err: any) {
+      console.error("Recording failed:", err);
+      setRecordingError("Recording not supported in this browser");
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    if (isRecording) {
+      socketRef.current?.emit("recording-toggle", {
+        roomId: activeRoomRef.current,
+        active: false,
+      });
+    }
+    setIsRecording(false);
+  }
+
+  function toggleRecording() {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }
+
+  function sendChat() {
+    if (!chatInput.trim() || !activeRoomRef.current) return;
+    socketRef.current?.emit("video-chat", {
+      roomId: activeRoomRef.current,
+      body: chatInput.trim(),
+    });
+    setChatInput("");
+  }
+
+  // Auto-scroll chat
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
 
   useEffect(() => {
     api
@@ -429,7 +668,7 @@ export default function VideoPage() {
       .catch(() => null);
   }, []);
 
-  // Auto-join if room param in URL — wait until rooms are loaded
+  // Auto-join if room param in URL
   useEffect(() => {
     if (joined || rooms.length === 0) return;
     const params = new URLSearchParams(window.location.search);
@@ -454,6 +693,11 @@ export default function VideoPage() {
     { userId: currentUser?.id || "", userName: currentUser?.name || "You", isLocal: true },
     ...participants.map((p) => ({ userId: p.userId, userName: p.userName, isLocal: false })),
   ];
+
+  const canControlRoom =
+    currentUser &&
+    activeRoom &&
+    (activeRoom.createdBy === currentUser.id || currentUser.role === "admin");
 
   return (
     <Layout>
@@ -528,6 +772,9 @@ export default function VideoPage() {
                     <div className="font-medium flex items-center gap-2">
                       <VideoIcon className="w-3.5 h-3.5" style={{ color: t.accent }} />
                       <span className="flex-1 truncate">{r.name}</span>
+                      {r.recordingActive && (
+                        <Circle className="w-3 h-3 text-red-500 animate-pulse" />
+                      )}
                       {canDelete && (
                         <button
                           onClick={(e) => {
@@ -542,8 +789,13 @@ export default function VideoPage() {
                         </button>
                       )}
                     </div>
-                    <div className="text-xs mt-0.5" style={{ color: t.textMuted }}>
+                    <div className="text-xs mt-0.5 flex items-center gap-2" style={{ color: t.textMuted }}>
                       {r.members?.length || 0} participant(s)
+                      {r.allowGuests && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: `${t.accent}22`, color: t.accent }}>
+                          Guest link
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -593,8 +845,25 @@ export default function VideoPage() {
                     <Users className="w-3 h-3" />
                     {participants.length + 1}
                   </span>
+                  {isRecording && (
+                    <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full" style={{ backgroundColor: "#EF444422", color: "#EF4444" }}>
+                      <Circle className="w-2 h-2 animate-pulse" />
+                      REC
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowChat((v) => !v)}
+                    className="text-xs flex items-center gap-1 px-3 py-1.5 rounded-lg"
+                    style={{
+                      color: showChat ? "#fff" : t.textSub,
+                      backgroundColor: showChat ? t.accent : t.inputBg,
+                    }}
+                  >
+                    <MessageSquare className="w-3 h-3" />
+                    Chat
+                  </button>
                   <button
                     onClick={() => setShowParticipants((v) => !v)}
                     className="text-xs flex items-center gap-1 px-3 py-1.5 rounded-lg"
@@ -604,7 +873,7 @@ export default function VideoPage() {
                     }}
                   >
                     <Users className="w-3 h-3" />
-                    Participants
+                    People
                   </button>
                   <button
                     onClick={() => {
@@ -647,10 +916,10 @@ export default function VideoPage() {
                         className="w-full h-full object-cover"
                         style={{
                           transform: "scaleX(-1)",
-                          display: camOn ? "block" : "none",
+                          display: camOn || screenSharing ? "block" : "none",
                         }}
                       />
-                      {!camOn && (
+                      {!camOn && !screenSharing && (
                         <div className="flex flex-col items-center justify-center">
                           <div
                             className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold mb-2"
@@ -671,7 +940,7 @@ export default function VideoPage() {
                             color: "#fff",
                           }}
                         >
-                          {currentUser?.name} (You)
+                          {currentUser?.name} (You){screenSharing ? " — Screen" : ""}
                         </span>
                         <div className="flex gap-1">
                           {!micOn && (
@@ -682,7 +951,7 @@ export default function VideoPage() {
                               <MicOff className="w-3 h-3 text-white" />
                             </span>
                           )}
-                          {!camOn && (
+                          {!camOn && !screenSharing && (
                             <span
                               className="p-1 rounded-md"
                               style={{ backgroundColor: "#EF4444" }}
@@ -749,6 +1018,100 @@ export default function VideoPage() {
                   </div>
                 </div>
 
+                {/* Chat sidebar */}
+                {showChat && (
+                  <div
+                    className="w-72 border-l flex flex-col flex-shrink-0"
+                    style={{
+                      borderColor: t.divider,
+                      backgroundColor: t.readLeftBg,
+                    }}
+                  >
+                    <div
+                      className="flex items-center justify-between px-4 py-3 border-b"
+                      style={{ borderColor: t.divider }}
+                    >
+                      <h3
+                        className="font-semibold text-sm"
+                        style={{ color: t.text }}
+                      >
+                        In-meeting chat
+                      </h3>
+                      <button
+                        onClick={() => setShowChat(false)}
+                        style={{ color: t.textSub }}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div
+                      ref={chatScrollRef}
+                      className="flex-1 overflow-y-auto p-4 space-y-3"
+                    >
+                      {chatMessages.length === 0 ? (
+                        <div
+                          className="text-center text-xs py-8"
+                          style={{ color: t.textMuted }}
+                        >
+                          No messages yet. Start the conversation!
+                        </div>
+                      ) : (
+                        chatMessages.map((msg) => {
+                          const isMe = msg.userId === currentUser?.id;
+                          const name = msg.guestName || msg.userId || "User";
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+                            >
+                              <span
+                                className="text-[10px] mb-0.5"
+                                style={{ color: t.textMuted }}
+                              >
+                                {isMe ? "You" : name}
+                              </span>
+                              <div
+                                className="text-sm px-3 py-2 rounded-xl max-w-[85%]"
+                                style={{
+                                  backgroundColor: isMe ? t.accent : t.inputBg,
+                                  color: isMe ? "#fff" : t.text,
+                                }}
+                              >
+                                {msg.body}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                    <div
+                      className="p-3 border-t flex gap-2"
+                      style={{ borderColor: t.divider }}
+                    >
+                      <input
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && sendChat()}
+                        placeholder="Type a message..."
+                        className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                        style={{
+                          backgroundColor: t.inputBg,
+                          border: `1px solid ${t.inputBorder}`,
+                          color: t.text,
+                        }}
+                      />
+                      <button
+                        onClick={sendChat}
+                        disabled={!chatInput.trim()}
+                        className="px-3 py-2 rounded-lg text-white disabled:opacity-50"
+                        style={{ background: t.accentGrad }}
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Participants sidebar */}
                 {showParticipants && (
                   <div
@@ -803,44 +1166,19 @@ export default function VideoPage() {
                               style={{ color: t.textMuted }}
                             >
                               {p.isLocal
-                                ? "You (host)"
+                                ? "You"
                                 : participants.find((pp) => pp.userId === p.userId)
                                     ?.connectionState === "connected"
                                   ? "Connected"
                                   : "Connecting..."}
                             </div>
                           </div>
-                          {p.isLocal ? (
-                            <div className="flex gap-1">
-                              {!micOn && (
-                                <span
-                                  className="p-1 rounded-md"
-                                  style={{ backgroundColor: "#EF4444" }}
-                                >
-                                  <MicOff className="w-3 h-3 text-white" />
-                                </span>
-                              )}
-                              {!camOn && (
-                                <span
-                                  className="p-1 rounded-md"
-                                  style={{ backgroundColor: "#EF4444" }}
-                                >
-                                  <VideoOff className="w-3 h-3 text-white" />
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <UserCircle
-                              className="w-5 h-5"
-                              style={{ color: t.textFaint }}
-                            />
-                          )}
                         </div>
                       ))}
                     </div>
-                    {/* Invite link section */}
+                    {/* Invite links */}
                     <div
-                      className="p-4 border-t"
+                      className="p-4 border-t space-y-2"
                       style={{ borderColor: t.divider }}
                     >
                       <button
@@ -854,6 +1192,19 @@ export default function VideoPage() {
                         <Copy className="w-3.5 h-3.5" />
                         Copy invite link
                       </button>
+                      {activeRoom?.allowGuests && (
+                        <button
+                          onClick={copyGuestInvite}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                          style={{
+                            color: t.accent,
+                            backgroundColor: `${t.accent}11`,
+                          }}
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          Copy guest link
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -861,7 +1212,7 @@ export default function VideoPage() {
 
               {/* Control bar */}
               <div
-                className="flex items-center justify-center gap-3 px-6 py-4 border-t"
+                className="flex items-center justify-center gap-2 px-6 py-4 border-t flex-wrap"
                 style={{
                   borderColor: t.divider,
                   backgroundColor: t.readTopBg,
@@ -875,11 +1226,7 @@ export default function VideoPage() {
                     color: micOn ? t.text : "#fff",
                   }}
                 >
-                  {micOn ? (
-                    <Mic className="w-4 h-4" />
-                  ) : (
-                    <MicOff className="w-4 h-4" />
-                  )}
+                  {micOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
                   {micOn ? "Mute" : "Unmute"}
                 </button>
                 <button
@@ -890,13 +1237,34 @@ export default function VideoPage() {
                     color: camOn ? t.text : "#fff",
                   }}
                 >
-                  {camOn ? (
-                    <VideoOn className="w-4 h-4" />
-                  ) : (
-                    <VideoOff className="w-4 h-4" />
-                  )}
+                  {camOn ? <VideoOn className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
                   {camOn ? "Stop video" : "Start video"}
                 </button>
+                <button
+                  onClick={toggleScreenShare}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  style={{
+                    backgroundColor: screenSharing ? t.accent : t.inputBg,
+                    color: screenSharing ? "#fff" : t.text,
+                  }}
+                >
+                  <Monitor className="w-4 h-4" />
+                  {screenSharing ? "Stop sharing" : "Share screen"}
+                </button>
+                {canControlRoom && (
+                  <button
+                    onClick={toggleRecording}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+                    style={{
+                      backgroundColor: isRecording ? "#EF4444" : t.inputBg,
+                      color: isRecording ? "#fff" : t.text,
+                    }}
+                    title={canControlRoom ? "Record meeting" : "Only host can record"}
+                  >
+                    {isRecording ? <Square className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                    {isRecording ? "Stop rec" : "Record"}
+                  </button>
+                )}
                 <button
                   onClick={leaveRoom}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
@@ -906,6 +1274,14 @@ export default function VideoPage() {
                   Leave
                 </button>
               </div>
+              {recordingError && (
+                <div
+                  className="px-4 py-2 text-xs text-center"
+                  style={{ backgroundColor: "#EF444422", color: "#EF4444" }}
+                >
+                  {recordingError}
+                </div>
+              )}
             </>
           ) : (
             <div

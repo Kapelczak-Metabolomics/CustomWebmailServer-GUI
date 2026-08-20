@@ -15,6 +15,7 @@ import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
 import ChatPage from "./pages/ChatPage";
 import VideoPage from "./pages/VideoPage";
+import GuestVideoPage from "./pages/GuestVideoPage";
 import ComposeModal from "./components/ComposeModal";
 import ToastContainer from "./components/ui/Toast";
 
@@ -129,9 +130,11 @@ export default function App() {
             <Route
               path="/video"
               element={
-                <ProtectedRoute allowed={["admin", "agent"]}>
-                  <VideoPage />
-                </ProtectedRoute>
+                new URLSearchParams(window.location.search).get("guest") === "1"
+                  ? <GuestVideoPage />
+                  : <ProtectedRoute allowed={["admin", "agent"]}>
+                      <VideoPage />
+                    </ProtectedRoute>
               }
             />
             <Route path="/portal" element={<PortalPage />} />

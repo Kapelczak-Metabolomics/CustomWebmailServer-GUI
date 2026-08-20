@@ -19,20 +19,7 @@ export function setupSocket(
   const userSockets = new Map<string, Set<string>>();
 
   function getUserIdFromSocket(socket: any): string | null {
-    // Try cookie first
-    const cookie = socket.handshake.headers.cookie as string | undefined;
-    if (cookie) {
-      const match = cookie.match(/token=([^;]+)/);
-      if (match) {
-        try {
-          const payload = jwt.verify(match[1], config.jwtSecret) as { id: string };
-          return payload.id;
-        } catch {
-          /* fall through */
-        }
-      }
-    }
-    // Try auth token
+    // Try auth token first (more reliable for cross-origin)
     const authToken = socket.handshake.auth?.token as string | undefined;
     if (authToken) {
       try {
@@ -42,7 +29,34 @@ export function setupSocket(
         /* fall through */
       }
     }
+    // Try cookie
+    const cookie = socket.handshake.headers.cookie as string | undefined;
+    if (cookie) {
+      const cookies = cookie.split(";").map((c: string) => c.trim());
+      for (const c of cookies) {
+        const [k, v] = c.split("=");
+        if (k === "token" && v) {
+          try {
+            const payload = jwt.verify(decodeURIComponent(v), config.jwtSecret) as { id: string };
+            return payload.id;
+          } catch {
+            /* fall through */
+          }
+        }
+      }
+    }
+    // Try guest id
+    const guestId = socket.handshake.auth?.guestId as string | undefined;
+    if (guestId) {
+      return guestId;
+    }
     return null;
+  }
+
+  function getDisplayName(socket: any): string {
+    const guestName = socket.handshake.auth?.guestName as string | undefined;
+    if (guestName) return guestName;
+    return "User";
   }
 
   io.on("connection", (socket) => {
@@ -189,6 +203,44 @@ export function setupSocket(
         }
       }
     });
+
+    // Video room chat message
+    socket.on(
+      "video-chat",
+      async ({ roomId, body }: { roomId: string; body: string }) => {
+        if (!body?.trim()) return;
+        const isGuest = socket.data.userId?.startsWith("guest-");
+        const guestName = isGuest ? getDisplayName(socket) : null;
+        const msg = await prisma.videoRoomMessage.create({
+          data: {
+            roomId,
+            userId: isGuest ? null : userId,
+            guestName,
+            body: body.trim(),
+          },
+        });
+        io.to(roomId).emit("video-chat", {
+          id: msg.id,
+          roomId,
+          userId: isGuest ? null : userId,
+          guestName,
+          body: msg.body,
+          createdAt: msg.createdAt.toISOString(),
+        });
+      },
+    );
+
+    // Recording status broadcast (host triggers, server persists + broadcasts)
+    socket.on(
+      "recording-toggle",
+      async ({ roomId, active }: { roomId: string; active: boolean }) => {
+        await prisma.videoRoom.update({
+          where: { id: roomId },
+          data: { recordingActive: active },
+        }).catch(() => {});
+        io.to(roomId).emit("recording-status", { active });
+      },
+    );
 
     socket.on("disconnect", () => {
       const sockets = userSockets.get(userId);

@@ -300,10 +300,12 @@ export function toConversation(c: ApiConversation): Conversation {
 }
 
 async function fetchJson(input: string, init?: RequestInit) {
+  const token = typeof localStorage !== "undefined" ? localStorage.getItem("token") : null;
   const res = await fetch(input, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...((init?.headers as Record<string, string>) || {}),
     },
     credentials: "include",
@@ -326,7 +328,15 @@ export const api = {
 
   async login(email: string, password: string) {
     const data = await this.post("/auth/login", { email, password });
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+    }
     return data.user;
+  },
+
+  async logout() {
+    localStorage.removeItem("token");
+    return this.post("/auth/logout");
   },
 
   async me() {
@@ -339,10 +349,6 @@ export const api = {
 
   async changePassword(currentPassword: string, newPassword: string) {
     return this.post("/auth/change-password", { currentPassword, newPassword });
-  },
-
-  async logout() {
-    return this.post("/auth/logout");
   },
 
   async forgotPassword(email: string) {
@@ -630,7 +636,27 @@ export const api = {
     return this.post(`/video/rooms/${id}/leave`, {});
   },
 
-  async updateVideoRoom(id: string, data: { name?: string; active?: boolean }) {
+  async getVideoRoomInfo(id: string) {
+    return this.get(`/video/rooms/${id}/info`);
+  },
+
+  async guestJoinVideoRoom(id: string, guestName: string) {
+    return this.post(`/video/rooms/${id}/guest-join`, { guestName });
+  },
+
+  async guestLeaveVideoRoom(id: string, guestId: string) {
+    return this.post(`/video/rooms/${id}/guest-leave`, { guestId });
+  },
+
+  async getVideoRoomMessages(id: string) {
+    return this.get(`/video/rooms/${id}/messages`);
+  },
+
+  async toggleVideoRecording(id: string, active: boolean, url?: string) {
+    return this.post(`/video/rooms/${id}/recording`, { active, url });
+  },
+
+  async updateVideoRoom(id: string, data: { name?: string; allowGuests?: boolean; active?: boolean }) {
     return this.patch(`/video/rooms/${id}`, data);
   },
 

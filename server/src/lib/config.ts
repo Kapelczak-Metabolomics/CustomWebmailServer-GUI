@@ -94,6 +94,18 @@ export const config = {
   turn: {
     secret: getOrCreateSecret("TURN_SECRET", ".turn-secret"),
     realm: process.env.TURN_REALM ?? "isotopiq.local",
+    // Auto-detect TURN host from CLIENT_URL if not explicitly set
+    host: process.env.TURN_HOST ?? (() => {
+      const clientUrl = process.env.CLIENT_URL;
+      if (clientUrl) {
+        try {
+          return new URL(clientUrl).hostname;
+        } catch {
+          return "localhost";
+        }
+      }
+      return "localhost";
+    })(),
     ttl: parseInt(process.env.TURN_TTL ?? "86400"),
   },
   email: {

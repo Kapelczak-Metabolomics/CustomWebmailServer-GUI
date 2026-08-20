@@ -357,26 +357,42 @@ model ChatMessageReceipt {
 }
 
 model VideoRoom {
-  id        String   @id @default(cuid())
-  name      String
-  createdBy String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  name            String
+  createdBy       String
+  active          Boolean  @default(true)
+  allowGuests     Boolean  @default(true)
+  recordingActive Boolean  @default(false)
+  recordingUrl    String?
+  createdAt       DateTime @default(now())
 
-  members VideoRoomMember[]
+  members  VideoRoomMember[]
+  messages VideoRoomMessage[]
 }
 
 model VideoRoomMember {
   id        String   @id @default(cuid())
   roomId    String
   userId    String
+  guestName String?
   joinedAt  DateTime @default(now())
   leftAt    DateTime?
 
   room VideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@unique([roomId, userId])
+}
+
+model VideoRoomMessage {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String?
+  guestName String?
+  body      String
+  createdAt DateTime @default(now())
+
+  room VideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
 model BrandSettings {

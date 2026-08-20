@@ -107,7 +107,7 @@ export default function ChatPage() {
   // Connect socket once
   useEffect(() => {
     if (!currentUser) return;
-    const token = getCookie("token") || "";
+    const token = localStorage.getItem("token") || getCookie("token") || "";
     const socket = io("/", {
       transports: ["websocket"],
       auth: { token },

@@ -1,15 +1,14 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: isotopiq-mail-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mail
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-mail}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -17,7 +16,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: isotopiq-mail-redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -27,7 +25,6 @@ services:
 
   coturn:
     image: coturn/coturn
-    container_name: isotopiq-mail-coturn
     command:
       - "-n"
       - "-f"
@@ -44,7 +41,6 @@ services:
 
   mailpit:
     image: axllent/mailpit
-    container_name: isotopiq-mail-mailpit
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
@@ -58,28 +54,35 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: isotopiq-mail-app
     ports:
-      - "18300:18300"
+      - "${APP_PORT:-18300}:18300"
     environment:
       - NODE_ENV=production
       - PORT=18300
       - APP_HOST=0.0.0.0
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mail?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-mail}?schema=public
       - REDIS_URL=redis://redis:6379
       - CLIENT_URL=${CLIENT_URL:-http://localhost:18300}
       - TURN_REALM=${TURN_REALM:-isotopiq.local}
       - TURN_SECRET=${TURN_SECRET:-change-me}
       - TURN_TTL=${TURN_TTL:-86400}
       - TURN_PORT=18478
+      - TURN_HOST=${TURN_HOST:-localhost}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - MAILPIT_HOST=mailpit
       - MAILPIT_SMTP_PORT=1025
       - MAILPIT_IMAP_PORT=143
-      - SMTP_HOST=mailpit
-      - SMTP_PORT=1025
-      - SMTP_SECURE=false
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-}
+      - S3_FORCE_PATH_STYLE=${S3_FORCE_PATH_STYLE:-false}
     volumes:
       - appdata:/app/data
       - uploads:/app/uploads
