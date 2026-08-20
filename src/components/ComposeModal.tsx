@@ -15,6 +15,7 @@ import {
   FileText,
   Minus,
   Expand,
+  StickyNote,
 } from "lucide-react";
 
 const DRAFT_KEY = "compose-draft";
@@ -26,6 +27,7 @@ interface DraftData {
   subject: string;
   body: string;
   mailboxId: string;
+  internalNote: string;
   attachments: { name: string; url: string }[];
   savedAt: string;
 }
@@ -64,12 +66,14 @@ export default function ComposeModal() {
   const [bcc, setBcc] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [internalNote, setInternalNote] = useState("");
   const [mailboxId, setMailboxId] = useState(mailboxes[0]?.id || "");
   const [errors, setErrors] = useState<string[]>([]);
   const [pendingAttachments, setPendingAttachments] = useState<
     { name: string; url: string }[]
   >([]);
   const [showCcBcc, setShowCcBcc] = useState(false);
+  const [showInternalNote, setShowInternalNote] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -89,6 +93,8 @@ export default function ComposeModal() {
         setBcc(draft.bcc);
         setSubject(draft.subject);
         setBody(draft.body);
+        setInternalNote(draft.internalNote || "");
+        if (draft.internalNote) setShowInternalNote(true);
         setMailboxId(draft.mailboxId || mailboxes[0]?.id || "");
         setPendingAttachments(draft.attachments || []);
         setHasDraft(true);
@@ -98,7 +104,7 @@ export default function ComposeModal() {
 
   // Autosave draft
   const doAutosave = useCallback(() => {
-    if (!to && !subject && !body && !cc && !bcc && pendingAttachments.length === 0) {
+    if (!to && !subject && !body && !cc && !bcc && !internalNote && pendingAttachments.length === 0) {
       return;
     }
     const data: DraftData = {
@@ -107,13 +113,14 @@ export default function ComposeModal() {
       bcc,
       subject,
       body,
+      internalNote,
       mailboxId,
       attachments: pendingAttachments,
       savedAt: new Date().toISOString(),
     };
     saveDraft(data);
     setDraftSavedAt(new Date().toLocaleTimeString());
-  }, [to, cc, bcc, subject, body, mailboxId, pendingAttachments]);
+  }, [to, cc, bcc, subject, body, internalNote, mailboxId, pendingAttachments]);
 
   useEffect(() => {
     if (!open) return;
@@ -124,7 +131,7 @@ export default function ComposeModal() {
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     };
-  }, [to, cc, bcc, subject, body, mailboxId, pendingAttachments, open, doAutosave]);
+  }, [to, cc, bcc, subject, body, internalNote, mailboxId, pendingAttachments, open, doAutosave]);
 
   const filteredContacts = useMemo(() => {
     const term = to.trim().toLowerCase();
@@ -153,6 +160,8 @@ export default function ComposeModal() {
     setBcc("");
     setSubject("");
     setBody("");
+    setInternalNote("");
+    setShowInternalNote(false);
     setErrors([]);
     setPendingAttachments([]);
     setHasDraft(false);
@@ -216,6 +225,7 @@ export default function ComposeModal() {
       mailboxId,
       customerId: contact.id,
       body: body.trim() + attachmentHtml(),
+      internalNote: internalNote.trim() || undefined,
     });
     selectConversation(conv.id);
     clearDraft();
@@ -224,12 +234,14 @@ export default function ComposeModal() {
     setBcc("");
     setSubject("");
     setBody("");
+    setInternalNote("");
+    setShowInternalNote(false);
     setErrors([]);
     setPendingAttachments([]);
     setHasDraft(false);
     setDraftSavedAt(null);
     setComposeOpen(false);
-    toast("Message sent", "success");
+    toast(internalNote.trim() ? "Message sent with internal note" : "Message sent", "success");
   }
 
   if (!open) return null;
@@ -322,6 +334,7 @@ export default function ComposeModal() {
                   if (window.confirm("Discard current draft and start fresh?")) {
                     clearDraft();
                     setTo(""); setCc(""); setBcc(""); setSubject(""); setBody("");
+                    setInternalNote(""); setShowInternalNote(false);
                     setPendingAttachments([]); setHasDraft(false); setDraftSavedAt(null);
                   }
                 }}
@@ -499,6 +512,54 @@ export default function ComposeModal() {
               placeholder="Write your message..."
               minHeight={isMaximized ? 300 : 200}
             />
+
+            {/* Internal note toggle */}
+            {!showInternalNote ? (
+              <button
+                onClick={() => setShowInternalNote(true)}
+                className="mt-3 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg"
+                style={{
+                  color: "#F59E0B",
+                  backgroundColor: "#F59E0B15",
+                }}
+              >
+                <StickyNote className="w-3.5 h-3.5" />
+                Add internal note
+              </button>
+            ) : (
+              <div
+                className="mt-3 rounded-xl overflow-hidden"
+                style={{ border: `1px solid #F59E0B40` }}
+              >
+                <div
+                  className="flex items-center justify-between px-3 py-2 border-b"
+                  style={{ backgroundColor: "#F59E0B12", borderColor: "#F59E0B40" }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <StickyNote className="w-3.5 h-3.5" style={{ color: "#F59E0B" }} />
+                    <span className="text-xs font-semibold" style={{ color: "#F59E0B" }}>
+                      Internal note (visible to team only)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setInternalNote("");
+                      setShowInternalNote(false);
+                    }}
+                    className="p-0.5 rounded"
+                    style={{ color: t.textMuted }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <RichTextEditor
+                  value={internalNote}
+                  onChange={setInternalNote}
+                  placeholder="Add a note for your team — the customer won't see this..."
+                  minHeight={80}
+                />
+              </div>
+            )}
           </div>
 
           {/* Attachments */}
