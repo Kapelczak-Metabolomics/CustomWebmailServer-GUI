@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTheme } from "../theme";
 import { useStore } from "../store";
 import { useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
 
 export default function LoginPage() {
   const { tokens: t, appName, logoUrl } = useTheme();
@@ -10,6 +11,10 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
   const login = useStore((s) => s.login);
   const navigate = useNavigate();
 
@@ -21,6 +26,18 @@ export default function LoginPage() {
     setLoading(false);
     if (ok) navigate("/");
     else setError("Invalid email or password.");
+  }
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotLoading(true);
+    try {
+      await api.forgotPassword(forgotEmail);
+      setForgotSent(true);
+    } catch {
+      setForgotSent(true); // Don't leak whether email exists
+    }
+    setForgotLoading(false);
   }
 
   return (
@@ -229,6 +246,11 @@ export default function LoginPage() {
             </label>
             <button
               type="button"
+              onClick={() => {
+                setShowForgot(true);
+                setForgotEmail(email);
+                setForgotSent(false);
+              }}
               className="text-xs font-medium"
               style={{ color: t.accent }}
             >
@@ -262,6 +284,79 @@ export default function LoginPage() {
           </div>
         </form>
       </div>
+
+      {/* Forgot password modal */}
+      {showForgot && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          onClick={() => setShowForgot(false)}
+        >
+          <div
+            className="rounded-xl p-6 max-w-sm w-full mx-4"
+            style={{ backgroundColor: t.card, border: `1px solid ${t.divider}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {forgotSent ? (
+              <>
+                <h3 className="font-semibold text-base mb-2" style={{ color: t.text }}>
+                  Check your email
+                </h3>
+                <p className="text-sm mb-4" style={{ color: t.textSub }}>
+                  If an account exists for {forgotEmail}, a password reset link has been sent.
+                </p>
+                <button
+                  onClick={() => setShowForgot(false)}
+                  className="w-full py-2.5 rounded-lg text-sm font-medium text-white"
+                  style={{ background: t.accentGrad }}
+                >
+                  Close
+                </button>
+              </>
+            ) : (
+              <form onSubmit={handleForgot}>
+                <h3 className="font-semibold text-base mb-2" style={{ color: t.text }}>
+                  Reset password
+                </h3>
+                <p className="text-sm mb-4" style={{ color: t.textSub }}>
+                  Enter your email and we'll send you a reset link.
+                </p>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full px-3.5 py-3 rounded-xl text-sm mb-4 outline-none"
+                  style={{
+                    backgroundColor: t.inputBg,
+                    border: `1px solid ${t.inputBorder}`,
+                    color: t.text,
+                  }}
+                  required
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgot(false)}
+                    className="flex-1 py-2.5 rounded-lg text-sm font-medium"
+                    style={{ backgroundColor: t.inputBg, color: t.text }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                    style={{ background: t.accentGrad }}
+                  >
+                    {forgotLoading ? "Sending..." : "Send link"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -28,6 +28,11 @@ import workflowRoutes from "./routes/workflows.js";
 import articleRoutes from "./routes/articles.js";
 import portalRoutes from "./routes/portal.js";
 import settingsRoutes from "./routes/settings.js";
+import teamsRoutes from "./routes/teams.js";
+import checklistsRoutes from "./routes/checklists.js";
+import timeTrackingRoutes from "./routes/timeTracking.js";
+import satisfactionRoutes from "./routes/satisfaction.js";
+import customFieldsRoutes from "./routes/customFields.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -76,6 +81,11 @@ app.use("/api/workflows", workflowRoutes);
 app.use("/api/articles", articleRoutes);
 app.use("/api/portal", portalRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/teams", teamsRoutes);
+app.use("/api/checklists", checklistsRoutes);
+app.use("/api/time", timeTrackingRoutes);
+app.use("/api/satisfaction", satisfactionRoutes);
+app.use("/api/custom-fields", customFieldsRoutes);
 
 // Serve React SPA from built client
 const publicDir = path.resolve(process.cwd(), "public");
@@ -91,7 +101,8 @@ app.get("*", (req, res, next) => {
 app.use(notFound);
 app.use(errorHandler);
 
-setupSocket(httpServer, config.clientUrl);
+const io = setupSocket(httpServer, config.clientUrl);
+app.set("io", io);
 
 httpServer.listen(config.port, () => {
   console.log(`Server listening on port ${config.port}`);

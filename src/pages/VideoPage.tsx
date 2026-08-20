@@ -3,6 +3,7 @@ import { useTheme } from "../theme";
 import Layout from "../components/Layout";
 import { useStore } from "../store";
 import { api } from "../lib/api";
+import { getCookie } from "../lib/utils";
 import { io, type Socket } from "socket.io-client";
 import {
   Video as VideoIcon,
@@ -17,6 +18,7 @@ import {
   Plus,
   X,
   UserCircle,
+  Trash2,
 } from "lucide-react";
 
 interface VideoUser {
@@ -31,6 +33,8 @@ interface VideoRoomMember {
 interface VideoRoom {
   id: string;
   name: string;
+  createdBy: string;
+  active: boolean;
   members: VideoRoomMember[];
 }
 
@@ -58,6 +62,8 @@ export default function VideoPage() {
   const [participants, setParticipants] = useState<RemotePeer[]>([]);
   const [showInvite, setShowInvite] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<VideoRoom | null>(null);
+  const [toast, setToast] = useState("");
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -73,7 +79,7 @@ export default function VideoPage() {
   // Connect socket once on mount
   useEffect(() => {
     if (!currentUser) return;
-    const token = document.cookie.match(/token=([^;]+)/)?.[1] || "";
+    const token = getCookie("token") || "";
     const socket = io("/", {
       transports: ["websocket"],
       auth: { token },
@@ -184,6 +190,25 @@ export default function VideoPage() {
         }
       },
     );
+
+    socket.on("room-deleted", ({ roomId }: { roomId: string }) => {
+      if (activeRoomRef.current === roomId) {
+        // Tear down active meeting
+        Object.values(peersRef.current).forEach((pc) => pc.close());
+        peersRef.current = {};
+        localStreamRef.current?.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+        if (localVideoRef.current) localVideoRef.current.srcObject = null;
+        activeRoomRef.current = null;
+        setActiveRoom(null);
+        setJoined(false);
+        setParticipants([]);
+        setToast("Meeting ended by host");
+        setTimeout(() => setToast(""), 3000);
+      }
+      // Remove from room list
+      setRooms((prev) => prev.filter((r) => r.id !== roomId));
+    });
 
     return () => {
       socket.disconnect();
@@ -332,7 +357,9 @@ export default function VideoPage() {
   }
 
   function leaveRoom() {
-    socketRef.current?.emit("leave-room", activeRoomRef.current);
+    const roomId = activeRoomRef.current;
+    socketRef.current?.emit("leave-room", roomId);
+    if (roomId) api.leaveVideoRoom(roomId).catch(() => {});
     Object.values(peersRef.current).forEach((pc) => pc.close());
     peersRef.current = {};
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -342,6 +369,31 @@ export default function VideoPage() {
     setActiveRoom(null);
     setJoined(false);
     setParticipants([]);
+  }
+
+  async function deleteRoom(room: VideoRoom) {
+    try {
+      await api.deleteVideoRoom(room.id);
+      // If deleting the active room, tear down
+      if (activeRoomRef.current === room.id) {
+        socketRef.current?.emit("leave-room", room.id);
+        Object.values(peersRef.current).forEach((pc) => pc.close());
+        peersRef.current = {};
+        localStreamRef.current?.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+        if (localVideoRef.current) localVideoRef.current.srcObject = null;
+        activeRoomRef.current = null;
+        setActiveRoom(null);
+        setJoined(false);
+        setParticipants([]);
+      }
+      setRooms((prev) => prev.filter((r) => r.id !== room.id));
+      setToast("Meeting deleted");
+      setTimeout(() => setToast(""), 3000);
+    } catch (err: any) {
+      setError("Failed to delete meeting: " + (err?.message || "Unknown error"));
+    }
+    setDeleteConfirm(null);
   }
 
   function toggleMic() {
@@ -377,16 +429,17 @@ export default function VideoPage() {
       .catch(() => null);
   }, []);
 
-  // Auto-join if room param in URL
+  // Auto-join if room param in URL — wait until rooms are loaded
   useEffect(() => {
+    if (joined || rooms.length === 0) return;
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get("room");
-    if (roomId && rooms.length > 0 && !joined) {
+    if (roomId) {
       const room = rooms.find((r) => r.id === roomId);
       if (room) joinRoom(room);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rooms]);
+  }, [rooms, joined]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -452,31 +505,49 @@ export default function VideoPage() {
                 No meetings yet. Create one to start.
               </div>
             ) : (
-              rooms.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => !joined && joinRoom(r)}
-                  disabled={joined}
-                  className={`w-full text-left px-4 py-3 border-b text-sm transition-colors ${
-                    joined ? "cursor-default" : "hover:opacity-80"
-                  }`}
-                  style={{
-                    borderColor: t.divider,
-                    backgroundColor:
-                      activeRoom?.id === r.id ? t.rowSelected : "transparent",
-                    color: t.text,
-                    opacity: joined && activeRoom?.id !== r.id ? 0.5 : 1,
-                  }}
-                >
-                  <div className="font-medium flex items-center gap-2">
-                    <VideoIcon className="w-3.5 h-3.5" style={{ color: t.accent }} />
-                    {r.name}
+              rooms.map((r) => {
+                const canDelete =
+                  currentUser &&
+                  (r.createdBy === currentUser.id ||
+                    currentUser.role === "admin");
+                return (
+                  <div
+                    key={r.id}
+                    className={`w-full text-left px-4 py-3 border-b text-sm transition-colors group ${
+                      joined ? "cursor-default" : "hover:opacity-80 cursor-pointer"
+                    }`}
+                    style={{
+                      borderColor: t.divider,
+                      backgroundColor:
+                        activeRoom?.id === r.id ? t.rowSelected : "transparent",
+                      color: t.text,
+                      opacity: joined && activeRoom?.id !== r.id ? 0.5 : 1,
+                    }}
+                    onClick={() => !joined && joinRoom(r)}
+                  >
+                    <div className="font-medium flex items-center gap-2">
+                      <VideoIcon className="w-3.5 h-3.5" style={{ color: t.accent }} />
+                      <span className="flex-1 truncate">{r.name}</span>
+                      {canDelete && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirm(r);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+                          style={{ color: "#EF4444" }}
+                          title="Delete meeting"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: t.textMuted }}>
+                      {r.members?.length || 0} participant(s)
+                    </div>
                   </div>
-                  <div className="text-xs mt-0.5" style={{ color: t.textMuted }}>
-                    {r.members?.length || 0} participant(s)
-                  </div>
-                </button>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -860,6 +931,55 @@ export default function VideoPage() {
           )}
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          onClick={() => setDeleteConfirm(null)}
+        >
+          <div
+            className="rounded-xl p-6 max-w-sm w-full mx-4"
+            style={{ backgroundColor: t.readTopBg, border: `1px solid ${t.divider}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold text-base mb-2" style={{ color: t.text }}>
+              Delete meeting?
+            </h3>
+            <p className="text-sm mb-4" style={{ color: t.textSub }}>
+              "{deleteConfirm.name}" will be permanently deleted. Active participants
+              will be removed from the call.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium"
+                style={{ backgroundColor: t.inputBg, color: t.text }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteRoom(deleteConfirm)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                style={{ backgroundColor: "#EF4444" }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-sm font-medium text-white shadow-lg"
+          style={{ backgroundColor: t.accent }}
+        >
+          {toast}
+        </div>
+      )}
     </Layout>
   );
 }

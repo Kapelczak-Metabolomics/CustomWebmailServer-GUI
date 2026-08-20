@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useTheme } from "../theme";
 import { api } from "../lib/api";
 import type { KnowledgeBaseArticle } from "../types";
-import { Search, FileText, Send, Ticket, ArrowLeft, BookOpen } from "lucide-react";
+import { sanitizeHtml } from "../lib/sanitize";
+import { Search, FileText, Send, Ticket, ArrowLeft, BookOpen, Star } from "lucide-react";
 
 interface PortalTicket {
   number: number;
@@ -272,7 +273,7 @@ export default function PortalPage() {
                 <div
                   className="prose max-w-none text-sm leading-relaxed"
                   style={{ color: t.textSub }}
-                  dangerouslySetInnerHTML={{ __html: selectedArticle.body }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedArticle.body) }}
                 />
               </div>
             ) : (
@@ -589,11 +590,20 @@ export default function PortalPage() {
                       <div
                         className="text-sm"
                         style={{ color: t.textSub }}
-                        dangerouslySetInnerHTML={{ __html: msg.body }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.body) }}
                       />
                     </div>
                   ))}
                 </div>
+
+                {/* Satisfaction rating for closed tickets */}
+                {ticket.status === "closed" && (
+                  <PortalRatingWidget
+                    number={ticket.number}
+                    email={ticketEmail}
+                  />
+                )}
+
                 <button
                   onClick={() => {
                     setTicket(null);
@@ -610,6 +620,102 @@ export default function PortalPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PortalRatingWidget({ number, email }: { number: number; email: string }) {
+  const { tokens: t } = useTheme();
+  const [rating, setRating] = useState(0);
+  const [hover, setHover] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [existing, setExisting] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getPortalRating(number, email).then((r: any) => {
+      if (r) setExisting(r);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [number, email]);
+
+  if (loading) return null;
+
+  if (existing || submitted) {
+    const r = existing?.rating || rating;
+    return (
+      <div
+        className="mt-4 rounded-xl p-4 text-center"
+        style={{ backgroundColor: t.card, border: `1px solid ${t.cardBorder}` }}
+      >
+        <div className="flex justify-center gap-1 mb-2">
+          {[1, 2, 3, 4, 5].map((s) => (
+            <Star
+              key={s}
+              className="w-5 h-5"
+              style={{ color: s <= r ? "#F59E0B" : t.textMuted }}
+              fill={s <= r ? "#F59E0B" : "none"}
+            />
+          ))}
+        </div>
+        <p className="text-sm" style={{ color: t.textSub }}>
+          Thank you for your feedback!
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mt-4 rounded-xl p-4"
+      style={{ backgroundColor: t.card, border: `1px solid ${t.cardBorder}` }}
+    >
+      <h4 className="text-sm font-semibold mb-2" style={{ color: t.text }}>
+        How did we do?
+      </h4>
+      <div className="flex gap-1 mb-3">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <button
+            key={s}
+            onMouseEnter={() => setHover(s)}
+            onMouseLeave={() => setHover(0)}
+            onClick={() => setRating(s)}
+          >
+            <Star
+              className="w-6 h-6 transition-transform hover:scale-110"
+              style={{ color: s <= (hover || rating) ? "#F59E0B" : t.textMuted }}
+              fill={s <= (hover || rating) ? "#F59E0B" : "none"}
+            />
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Optional comment..."
+        className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-3 resize-none"
+        style={{
+          backgroundColor: t.inputBg,
+          border: `1px solid ${t.inputBorder}`,
+          color: t.text,
+          minHeight: "60px",
+        }}
+      />
+      <button
+        onClick={async () => {
+          if (rating < 1) return;
+          try {
+            await api.submitPortalRating(number, email, rating, comment);
+            setSubmitted(true);
+          } catch {}
+        }}
+        disabled={rating < 1}
+        className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+        style={{ background: t.accentGrad }}
+      >
+        Submit rating
+      </button>
     </div>
   );
 }

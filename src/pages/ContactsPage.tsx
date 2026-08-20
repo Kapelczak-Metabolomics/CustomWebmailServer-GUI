@@ -11,6 +11,8 @@ import {
   Building2,
   Calendar,
   StickyNote,
+  Trash2,
+  Edit3,
 } from "lucide-react";
 
 export default function ContactsPage() {
@@ -19,11 +21,18 @@ export default function ContactsPage() {
   const conversations = useStore((s) => s.conversations);
   const currentUser = useStore((s) => s.currentUser);
   const addContact = useStore((s) => s.addContact);
+  const updateContact = useStore((s) => s.updateContact);
+  const deleteContact = useStore((s) => s.deleteContact);
+  const deleteContactNote = useStore((s) => s.deleteContactNote);
+  const updateContactNote = useStore((s) => s.updateContactNote);
   const addNote = useStore((s) => s.addNote);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [editingContact, setEditingContact] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteEdit, setNoteEdit] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -61,6 +70,61 @@ export default function ContactsPage() {
     setNote("");
   }
 
+  async function handleDeleteContact() {
+    if (!selected) return;
+    if (!window.confirm("Delete this contact? This cannot be undone.")) return;
+    await deleteContact(selected);
+    setSelected(null);
+    setEditingContact(false);
+  }
+
+  function openEditContact() {
+    if (!selectedContact) return;
+    setForm({
+      name: selectedContact.name,
+      email: selectedContact.email,
+      company: selectedContact.company || "",
+      phone: selectedContact.phone || "",
+    });
+    setEditingContact(true);
+    setShowAdd(true);
+  }
+
+  async function handleSaveContact() {
+    if (!form.name || !form.email) return;
+    if (editingContact && selected) {
+      await updateContact({
+        id: selected,
+        name: form.name,
+        email: form.email,
+        company: form.company,
+        phone: form.phone,
+      });
+      setEditingContact(false);
+      setShowAdd(false);
+    } else {
+      await handleAdd();
+    }
+  }
+
+  async function handleDeleteNote(noteId: string) {
+    if (!selected) return;
+    if (!window.confirm("Delete this note?")) return;
+    await deleteContactNote(selected, noteId);
+  }
+
+  function startEditNote(noteId: string, body: string) {
+    setEditingNoteId(noteId);
+    setNoteEdit(body);
+  }
+
+  async function saveEditNote(noteId: string) {
+    if (!selected || !noteEdit.trim()) return;
+    await updateContactNote(selected, noteId, noteEdit.trim());
+    setEditingNoteId(null);
+    setNoteEdit("");
+  }
+
   return (
     <Layout>
       <div className="h-full flex flex-col md:flex-row overflow-hidden">
@@ -74,7 +138,11 @@ export default function ContactsPage() {
                 Contacts
               </h2>
               <button
-                onClick={() => setShowAdd(true)}
+                onClick={() => {
+                  setEditingContact(false);
+                  setForm({ name: "", email: "", company: "", phone: "" });
+                  setShowAdd(true);
+                }}
                 className="p-2 rounded-lg"
                 style={{ backgroundColor: t.accent, color: "#fff" }}
               >
@@ -159,13 +227,31 @@ export default function ContactsPage() {
                 >
                   {getInitials(selectedContact.name)}
                 </div>
-                <div>
-                  <h2
-                    className="text-xl font-semibold"
-                    style={{ color: t.text }}
-                  >
-                    {selectedContact.name}
-                  </h2>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2
+                      className="text-xl font-semibold"
+                      style={{ color: t.text }}
+                    >
+                      {selectedContact.name}
+                    </h2>
+                    <button
+                      onClick={openEditContact}
+                      className="p-1.5 rounded-lg"
+                      style={{ color: t.textSub }}
+                      title="Edit contact"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleDeleteContact}
+                      className="p-1.5 rounded-lg"
+                      style={{ color: t.textSub }}
+                      title="Delete contact"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                   <div
                     className="flex flex-wrap items-center gap-4 mt-1 text-sm"
                     style={{ color: t.textMuted }}
@@ -258,12 +344,69 @@ export default function ContactsPage() {
                         style={{ backgroundColor: t.readLeftBg }}
                       >
                         <div
-                          className="text-xs mb-1"
+                          className="flex items-center justify-between mb-1"
                           style={{ color: t.textMuted }}
                         >
-                          {formatDate(n.createdAt)}
+                          <span className="text-xs">
+                            {formatDate(n.createdAt)}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {editingNoteId === n.id ? null : (
+                              <>
+                                <button
+                                  onClick={() => startEditNote(n.id, n.body)}
+                                  className="p-1 rounded"
+                                  style={{ color: t.textSub }}
+                                  title="Edit note"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteNote(n.id)}
+                                  className="p-1 rounded"
+                                  style={{ color: t.textSub }}
+                                  title="Delete note"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ color: t.textSub }}>{n.body}</div>
+                        {editingNoteId === n.id ? (
+                          <div className="flex gap-2">
+                            <input
+                              value={noteEdit}
+                              onChange={(e) => setNoteEdit(e.target.value)}
+                              autoFocus
+                              className="flex-1 px-2 py-1 rounded-lg text-sm outline-none"
+                              style={{
+                                backgroundColor: t.inputBg,
+                                border: `1px solid ${t.inputBorder}`,
+                                color: t.text,
+                              }}
+                            />
+                            <button
+                              onClick={() => saveEditNote(n.id)}
+                              className="px-2 py-1 rounded-lg text-xs font-semibold text-white"
+                              style={{ background: t.accentGrad }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingNoteId(null);
+                                setNoteEdit("");
+                              }}
+                              className="px-2 py-1 rounded-lg text-xs"
+                              style={{ color: t.textSub }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ color: t.textSub }}>{n.body}</div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -314,7 +457,7 @@ export default function ContactsPage() {
             style={{ backgroundColor: t.readLeftBg, boxShadow: t.shadow }}
           >
             <h3 className="font-semibold mb-4" style={{ color: t.text }}>
-              Add contact
+              {editingContact ? "Edit contact" : "Add contact"}
             </h3>
             <div className="space-y-3 mb-4">
               <input
@@ -364,18 +507,21 @@ export default function ContactsPage() {
             </div>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setShowAdd(false)}
+                onClick={() => {
+                  setShowAdd(false);
+                  setEditingContact(false);
+                }}
                 className="px-4 py-2 rounded-lg text-sm"
                 style={{ color: t.textSub }}
               >
                 Cancel
               </button>
               <button
-                onClick={handleAdd}
+                onClick={handleSaveContact}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
                 style={{ background: t.accentGrad }}
               >
-                Add
+                {editingContact ? "Save" : "Add"}
               </button>
             </div>
           </div>

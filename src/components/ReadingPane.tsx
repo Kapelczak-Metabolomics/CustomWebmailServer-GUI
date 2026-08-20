@@ -8,11 +8,16 @@ import {
   getInitials,
   stripHtml,
 } from "../lib/utils";
+import { sanitizeHtml } from "../lib/sanitize";
+import { toast } from "./ui/toastStore";
 import { api } from "../lib/api";
 import EmptyState from "./EmptyState";
 import Avatar from "./Avatar";
 import LabelBadge from "./LabelBadge";
 import { Icon } from "./Icon";
+import ChecklistPanel from "./ChecklistPanel";
+import TimeTrackingPanel from "./TimeTrackingPanel";
+import SatisfactionRating from "./SatisfactionRating";
 import {
   Inbox,
   MessageSquareWarning,
@@ -70,6 +75,9 @@ export default function ReadingPane() {
   const unfollowConversation = useStore((s) => s.unfollowConversation);
   const snoozeConversation = useStore((s) => s.snoozeConversation);
   const forwardConversation = useStore((s) => s.forwardConversation);
+  const deleteConversation = useStore((s) => s.deleteConversation);
+  const deleteMessage = useStore((s) => s.deleteMessage);
+  const updateMessage = useStore((s) => s.updateMessage);
 
   const [replyText, setReplyText] = useState("");
   const [replyMode, setReplyMode] = useState<"reply" | "note">("reply");
@@ -95,6 +103,8 @@ export default function ReadingPane() {
   const [fwdNote, setFwdNote] = useState("");
   const [snoozeDate, setSnoozeDate] = useState("");
   const [showNotesPanel, setShowNotesPanel] = useState(false);
+  const [showSidePanel, setShowSidePanel] = useState(false);
+  const [sidePanelTab, setSidePanelTab] = useState<"checklist" | "time" | "rating">("checklist");
   const [quickNote, setQuickNote] = useState("");
 
   const conversation = useMemo(
@@ -146,7 +156,7 @@ export default function ReadingPane() {
       setPendingAttachments((prev) => [...prev, { name, url }]);
     } catch (err) {
       console.error("Upload failed", err);
-      alert("Failed to upload attachment");
+      toast("Failed to upload attachment", "error");
     }
   }
 
@@ -201,8 +211,10 @@ export default function ReadingPane() {
       contacts.find((c) => c.id === msg.authorId);
     const isMe = msg.authorId === currentUser?.id;
     const isNote = msg.type === "note";
+    const [editing, setEditing] = useState(false);
+    const [editBody, setEditBody] = useState(msg.body);
     return (
-      <div className={`flex gap-3 mb-6 ${isMe ? "flex-row-reverse" : ""}`}>
+      <div className={`flex gap-3 mb-6 group ${isMe ? "flex-row-reverse" : ""}`}>
         <div className="flex-shrink-0">
           <Avatar
             name={author?.name || "Unknown"}
@@ -222,6 +234,11 @@ export default function ReadingPane() {
             <span className="text-[10px]" style={{ color: t.textMuted }}>
               {formatDate(msg.createdAt)} {formatTime(msg.createdAt)}
             </span>
+            {msg.editedAt && (
+              <span className="text-[10px]" style={{ color: t.textFaint }}>
+                (edited)
+              </span>
+            )}
             {msg.type === "note" && (
               <span
                 className="text-[10px] px-1.5 py-0.5 rounded-full"
@@ -230,40 +247,104 @@ export default function ReadingPane() {
                 Internal note
               </span>
             )}
+            {isMe && (msg.type === "reply" || msg.type === "internal") && (
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => {
+                    setEditing(!editing);
+                    setEditBody(msg.body);
+                  }}
+                  className="text-[10px] px-1.5 py-0.5 rounded"
+                  style={{ color: t.textMuted, backgroundColor: t.inputBg }}
+                  title="Edit"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm("Delete this message?")) {
+                      deleteMessage(msg.id);
+                    }
+                  }}
+                  className="text-[10px] px-1.5 py-0.5 rounded"
+                  style={{ color: "#EF4444", backgroundColor: t.inputBg }}
+                  title="Delete"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
           <div className="w-fit max-w-full">
-            <div
-              className="text-sm leading-relaxed px-4 py-3 rounded-2xl"
-              style={{
-                backgroundColor: isMe
-                  ? t.accent
-                  : isNote
-                    ? "#F59E0B11"
-                    : t.readMain,
-                color: isMe ? "#fff" : t.text,
-                border: `1px solid ${
-                  isMe ? t.accent : isNote ? "#F59E0B44" : t.divider
-                }`,
-              }}
-              dangerouslySetInnerHTML={{ __html: msg.body }}
-            />
-            {msg.attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {msg.attachments.map((a) => (
-                  <a
-                    key={a.id}
-                    href={a.url}
-                    download
-                    className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg"
-                    style={{ backgroundColor: t.inputBg, color: t.textSub }}
+            {editing ? (
+              <div className="flex flex-col gap-2 w-80">
+                <textarea
+                  value={editBody}
+                  onChange={(e) => setEditBody(e.target.value)}
+                  className="text-sm leading-relaxed px-4 py-3 rounded-2xl outline-none resize-y"
+                  style={{
+                    backgroundColor: t.inputBg,
+                    color: t.text,
+                    border: `1px solid ${t.inputBorder}`,
+                    minHeight: "80px",
+                  }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      updateMessage(msg.id, editBody);
+                      setEditing(false);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                    style={{ background: t.accent }}
                   >
-                    <Paperclip className="w-3 h-3" /> {a.name}{" "}
-                    <span style={{ color: t.textMuted }}>
-                      ({formatBytes(a.size)})
-                    </span>
-                  </a>
-                ))}
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ backgroundColor: t.inputBg, color: t.text }}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
+            ) : (
+              <>
+                <div
+                  className="text-sm leading-relaxed px-4 py-3 rounded-2xl"
+                  style={{
+                    backgroundColor: isMe
+                      ? t.accent
+                      : isNote
+                        ? "#F59E0B11"
+                        : t.readMain,
+                    color: isMe ? "#fff" : t.text,
+                    border: `1px solid ${
+                      isMe ? t.accent : isNote ? "#F59E0B44" : t.divider
+                    }`,
+                  }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.body) }}
+                />
+                {msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {msg.attachments.map((a) => (
+                      <a
+                        key={a.id}
+                        href={a.url}
+                        download
+                        className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg"
+                        style={{ backgroundColor: t.inputBg, color: t.textSub }}
+                      >
+                        <Paperclip className="w-3 h-3" /> {a.name}{" "}
+                        <span style={{ color: t.textMuted }}>
+                          ({formatBytes(a.size)})
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -372,6 +453,18 @@ export default function ReadingPane() {
             )}
           </button>
           <button
+            onClick={() => setShowSidePanel((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
+            style={{
+              backgroundColor: showSidePanel ? t.accent : t.inputBg,
+              color: showSidePanel ? "#fff" : t.textSub,
+            }}
+            title="Checklists, time tracking, ratings"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            Tools
+          </button>
+          <button
             onClick={() => setReplyMode("reply")}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
             style={{ backgroundColor: t.accent, color: "#fff" }}
@@ -461,7 +554,19 @@ export default function ReadingPane() {
                 className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
                 style={{ color: "#EF4444" }}
               >
-                <Trash className="w-3.5 h-3.5" /> Delete
+                <Trash className="w-3.5 h-3.5" /> Move to trash
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm("Permanently delete this conversation? This cannot be undone.")) {
+                    deleteConversation(conv.id);
+                  }
+                  setShowMore(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                style={{ color: "#EF4444" }}
+              >
+                <Trash className="w-3.5 h-3.5" /> Delete permanently
               </button>
             </div>
           )}
@@ -699,7 +804,7 @@ export default function ReadingPane() {
                             border: "1px solid #F59E0B33",
                             color: t.text,
                           }}
-                          dangerouslySetInnerHTML={{ __html: note.body }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.body) }}
                         />
                       </div>
                     </div>
@@ -751,6 +856,44 @@ export default function ReadingPane() {
             >
               <Send className="w-4 h-4" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tools side panel: checklists, time tracking, satisfaction */}
+      {showSidePanel && (
+        <div
+          className="border-t flex flex-col"
+          style={{
+            borderColor: t.divider,
+            backgroundColor: t.card,
+            maxHeight: "320px",
+          }}
+        >
+          <div
+            className="flex items-center gap-1 px-4 py-2 border-b"
+            style={{ borderColor: t.divider }}
+          >
+            {(["checklist", "time", "rating"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setSidePanelTab(tab)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium capitalize"
+                style={{
+                  backgroundColor: sidePanelTab === tab ? t.accent : "transparent",
+                  color: sidePanelTab === tab ? "#fff" : t.textSub,
+                }}
+              >
+                {tab === "time" ? "Time Tracking" : tab === "rating" ? "Rating" : "Checklists"}
+              </button>
+            ))}
+          </div>
+          <div className="overflow-y-auto p-4">
+            {sidePanelTab === "checklist" && <ChecklistPanel conversationId={conv.id} />}
+            {sidePanelTab === "time" && <TimeTrackingPanel conversationId={conv.id} />}
+            {sidePanelTab === "rating" && (
+              <SatisfactionRating conversationId={conv.id} readonly />
+            )}
           </div>
         </div>
       )}

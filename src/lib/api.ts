@@ -345,6 +345,14 @@ export const api = {
     return this.post("/auth/logout");
   },
 
+  async forgotPassword(email: string) {
+    return this.post("/auth/forgot-password", { email });
+  },
+
+  async resetPassword(token: string, password: string) {
+    return this.post("/auth/reset-password", { token, password });
+  },
+
   async listUsers() {
     const data = await this.get("/users");
     return (data as ApiUser[]).map(toUser);
@@ -359,6 +367,10 @@ export const api = {
     return toMailbox(await this.post("/mailboxes", data));
   },
 
+  async deleteMailbox(id: string) {
+    return this.del(`/mailboxes/${id}`);
+  },
+
   async listContacts(search?: string) {
     const data = await this.get(
       `/contacts?search=${encodeURIComponent(search || "")}`,
@@ -368,6 +380,14 @@ export const api = {
 
   async createContact(data: Partial<Contact>) {
     return toContact(await this.post("/contacts", data));
+  },
+
+  async updateContact(id: string, data: Partial<Contact>) {
+    return toContact(await this.patch(`/contacts/${id}`, data));
+  },
+
+  async deleteContact(id: string) {
+    return this.del(`/contacts/${id}`);
   },
 
   async listConversations(params?: Record<string, string>) {
@@ -419,6 +439,19 @@ export const api = {
     return toMessage(m);
   },
 
+  async updateMessage(id: string, body: string) {
+    const m: ApiMessage = await this.patch(`/messages/${id}`, { body });
+    return toMessage(m);
+  },
+
+  async deleteMessage(id: string) {
+    return this.del(`/messages/${id}`);
+  },
+
+  async deleteConversation(id: string) {
+    return this.del(`/conversations/${id}`);
+  },
+
   async getUploadUrl(filename: string, contentType: string) {
     return this.post("/attachments/upload-url", { filename, contentType });
   },
@@ -437,6 +470,22 @@ export const api = {
 
   async createChatRoom(data: ApiChatRoomInput) {
     return this.post("/chat/rooms", data);
+  },
+
+  async updateChatRoom(id: string, data: { name?: string }) {
+    return this.patch(`/chat/rooms/${id}`, data);
+  },
+
+  async deleteChatRoom(id: string) {
+    return this.del(`/chat/rooms/${id}`);
+  },
+
+  async leaveChatRoom(id: string) {
+    return this.post(`/chat/rooms/${id}/leave`, {});
+  },
+
+  async deleteChatMessage(roomId: string, messageId: string) {
+    return this.del(`/chat/rooms/${roomId}/messages/${messageId}`);
   },
 
   async listChatMessages(roomId: string) {
@@ -471,6 +520,10 @@ export const api = {
     return this.post("/tags", { name, color }) as Promise<ApiTag>;
   },
 
+  async updateTag(id: string, data: { name?: string; color?: string }) {
+    return this.patch(`/tags/${id}`, data) as Promise<ApiTag>;
+  },
+
   async deleteTag(id: string) {
     return this.del(`/tags/${id}`);
   },
@@ -483,12 +536,28 @@ export const api = {
     return this.post("/saved-replies", data) as Promise<SavedReply>;
   },
 
+  async updateSavedReply(id: string, data: Partial<SavedReply>) {
+    return this.patch(`/saved-replies/${id}`, data) as Promise<SavedReply>;
+  },
+
+  async deleteSavedReply(id: string) {
+    return this.del(`/saved-replies/${id}`);
+  },
+
   async listWorkflows() {
     return this.get("/workflows") as Promise<Workflow[]>;
   },
 
   async createWorkflow(data: Partial<Workflow>) {
     return this.post("/workflows", data) as Promise<Workflow>;
+  },
+
+  async updateWorkflow(id: string, data: Partial<Workflow>) {
+    return this.patch(`/workflows/${id}`, data) as Promise<Workflow>;
+  },
+
+  async deleteWorkflow(id: string) {
+    return this.del(`/workflows/${id}`);
   },
 
   async listArticles() {
@@ -499,8 +568,24 @@ export const api = {
     return this.post("/articles", data) as Promise<KnowledgeBaseArticle>;
   },
 
+  async updateArticle(id: string, data: Partial<KnowledgeBaseArticle>) {
+    return this.patch(`/articles/${id}`, data) as Promise<KnowledgeBaseArticle>;
+  },
+
+  async deleteArticle(id: string) {
+    return this.del(`/articles/${id}`);
+  },
+
   async createUser(data: Partial<User> & { password?: string }) {
     return toUser(await this.post("/users", data));
+  },
+
+  async updateUser(id: string, data: Partial<User> & { password?: string }) {
+    return toUser(await this.patch(`/users/${id}`, data));
+  },
+
+  async deleteUser(id: string) {
+    return this.del(`/users/${id}`);
   },
 
   async listContactNotes(contactId: string) {
@@ -511,6 +596,14 @@ export const api = {
 
   async createContactNote(contactId: string, body: string, authorId: string) {
     return this.post(`/contacts/${contactId}/notes`, { body, authorId });
+  },
+
+  async updateContactNote(contactId: string, noteId: string, body: string) {
+    return this.patch(`/contacts/${contactId}/notes/${noteId}`, { body });
+  },
+
+  async deleteContactNote(contactId: string, noteId: string) {
+    return this.del(`/contacts/${contactId}/notes/${noteId}`);
   },
 
   async addTagToConversation(conversationId: string, tagId: string) {
@@ -527,6 +620,18 @@ export const api = {
 
   async joinVideoRoom(id: string) {
     return this.post(`/video/rooms/${id}/join`, {});
+  },
+
+  async deleteVideoRoom(id: string) {
+    return this.del(`/video/rooms/${id}`);
+  },
+
+  async leaveVideoRoom(id: string) {
+    return this.post(`/video/rooms/${id}/leave`, {});
+  },
+
+  async updateVideoRoom(id: string, data: { name?: string; active?: boolean }) {
+    return this.patch(`/video/rooms/${id}`, data);
   },
 
   // Portal (public, no auth)
@@ -550,6 +655,19 @@ export const api = {
   async getPortalTicket(number: number, email: string) {
     return this.get(
       `/portal/tickets/${number}?email=${encodeURIComponent(email)}`,
+    );
+  },
+
+  async submitPortalRating(number: number, email: string, rating: number, comment?: string) {
+    return this.post(
+      `/portal/tickets/${number}/rating?email=${encodeURIComponent(email)}`,
+      { rating, comment },
+    );
+  },
+
+  async getPortalRating(number: number, email: string) {
+    return this.get(
+      `/portal/tickets/${number}/rating?email=${encodeURIComponent(email)}`,
     );
   },
 
@@ -593,5 +711,110 @@ export const api = {
       await fetch(uploadUrl, { method: "PUT", body: file });
     }
     return { name: file.name, url };
+  },
+
+  // Teams
+  async listTeams() {
+    return this.get("/teams");
+  },
+
+  async createTeam(data: { name: string; description?: string; memberIds?: string[] }) {
+    return this.post("/teams", data);
+  },
+
+  async updateTeam(id: string, data: { name?: string; description?: string }) {
+    return this.patch(`/teams/${id}`, data);
+  },
+
+  async deleteTeam(id: string) {
+    return this.del(`/teams/${id}`);
+  },
+
+  async addTeamMember(teamId: string, userId: string) {
+    return this.post(`/teams/${teamId}/members`, { userId });
+  },
+
+  async removeTeamMember(teamId: string, userId: string) {
+    return this.del(`/teams/${teamId}/members/${userId}`);
+  },
+
+  // Checklists
+  async listChecklists(conversationId: string) {
+    return this.get(`/checklists/conversations/${conversationId}/checklists`);
+  },
+
+  async createChecklist(conversationId: string, title: string) {
+    return this.post(`/checklists/conversations/${conversationId}/checklists`, { title });
+  },
+
+  async updateChecklist(id: string, title: string) {
+    return this.patch(`/checklists/${id}`, { title });
+  },
+
+  async deleteChecklist(id: string) {
+    return this.del(`/checklists/${id}`);
+  },
+
+  async addChecklistItem(checklistId: string, text: string) {
+    return this.post(`/checklists/${checklistId}/items`, { text });
+  },
+
+  async updateChecklistItem(checklistId: string, itemId: string, data: { text?: string; done?: boolean }) {
+    return this.patch(`/checklists/${checklistId}/items/${itemId}`, data);
+  },
+
+  async deleteChecklistItem(checklistId: string, itemId: string) {
+    return this.del(`/checklists/${checklistId}/items/${itemId}`);
+  },
+
+  // Time tracking
+  async listTimeEntries(conversationId: string) {
+    return this.get(`/time/conversations/${conversationId}/time`);
+  },
+
+  async createTimeEntry(conversationId: string, minutes: number, description?: string) {
+    return this.post(`/time/conversations/${conversationId}/time`, { minutes, description });
+  },
+
+  async updateTimeEntry(id: string, minutes: number) {
+    return this.patch(`/time/${id}`, { minutes });
+  },
+
+  async deleteTimeEntry(id: string) {
+    return this.del(`/time/${id}`);
+  },
+
+  // Satisfaction ratings
+  async getSatisfactionRating(conversationId: string) {
+    return this.get(`/satisfaction/conversations/${conversationId}/rating`);
+  },
+
+  async submitSatisfactionRating(conversationId: string, rating: number, comment?: string) {
+    return this.post(`/satisfaction/conversations/${conversationId}/rating`, { rating, comment });
+  },
+
+  // Custom fields
+  async listCustomFields() {
+    return this.get("/custom-fields");
+  },
+
+  async createCustomField(data: { name: string; type: string; options?: string; target?: string }) {
+    return this.post("/custom-fields", data);
+  },
+
+  async updateCustomField(id: string, data: { name?: string; type?: string; options?: string; target?: string }) {
+    return this.patch(`/custom-fields/${id}`, data);
+  },
+
+  async deleteCustomField(id: string) {
+    return this.del(`/custom-fields/${id}`);
+  },
+
+  async getContactCustomFields(contactId: string) {
+    return this.get(`/custom-fields/contacts/${contactId}/fields`);
+  },
+
+  async setContactCustomField(contactId: string, fieldId: string, value: string) {
+    return this.patch(`/custom-fields/contacts/${contactId}/fields`, { fieldId, value });
   },
 };

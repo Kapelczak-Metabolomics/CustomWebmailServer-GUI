@@ -160,4 +160,58 @@ export interface AppState {
   articles: KnowledgeBaseArticle[];
   notifications: Notification[];
   settings: AppSettings;
+  teams: Team[];
+  customFields: CustomField[];
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  members: TeamMember[];
+}
+
+export interface TeamMember {
+  userId: string;
+  user: { id: string; name: string; email: string; role: string };
+}
+
+export interface Checklist {
+  id: string;
+  conversationId: string;
+  title: string;
+  items: ChecklistItem[];
+  createdAt: string;
+}
+
+export interface ChecklistItem {
+  id: string;
+  checklistId: string;
+  text: string;
+  done: boolean;
+}
+
+export interface TimeEntry {
+  id: string;
+  conversationId: string;
+  userId: string;
+  minutes: number;
+  createdAt: string;
+  user?: { id: string; name: string };
+}
+
+export interface SatisfactionRating {
+  id: string;
+  conversationId: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+}
+
+export interface CustomField {
+  id: string;
+  name: string;
+  type: string;
+  options?: string | null;
+  target: string;
 }

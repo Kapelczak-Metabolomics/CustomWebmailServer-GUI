@@ -119,4 +119,103 @@ router.get("/read-receipts", async (req: AuthRequest, res) => {
   });
 });
 
+// Update a chat room (group name) — admin or creator (first member)
+router.patch("/rooms/:id", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const room = await prisma.chatRoom.findUnique({
+    where: { id },
+    include: { members: true },
+  });
+  if (!room) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (room.direct) {
+    res.status(400).json({ error: "Cannot rename direct messages" });
+    return;
+  }
+  // Check admin or membership
+  const isMember = room.members.some((m) => m.userId === req.user!.id);
+  if (!isMember && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Not authorized" });
+    return;
+  }
+  const { name } = req.body;
+  const updated = await prisma.chatRoom.update({
+    where: { id },
+    data: { name },
+    include: {
+      members: { include: { user: { select: { id: true, name: true } } } },
+    },
+  });
+  res.json(updated);
+});
+
+// Delete a chat room — admin, or any member for DMs, or creator for groups
+router.delete("/rooms/:id", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const room = await prisma.chatRoom.findUnique({
+    where: { id },
+    include: { members: true },
+  });
+  if (!room) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const isMember = room.members.some((m) => m.userId === req.user!.id);
+  if (!isMember && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Not authorized" });
+    return;
+  }
+  // Notify members via socket
+  const io = req.app.get("io") as any;
+  if (io) io.to(id).emit("room-deleted", { roomId: id });
+  await prisma.chatRoom.delete({ where: { id } });
+  res.json({ ok: true });
+});
+
+// Leave a chat room
+router.post("/rooms/:id/leave", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const room = await prisma.chatRoom.findUnique({ where: { id } });
+  if (!room) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  // For DMs, leaving = deleting the room
+  if (room.direct) {
+    const io = req.app.get("io") as any;
+    if (io) io.to(id).emit("room-deleted", { roomId: id });
+    await prisma.chatRoom.delete({ where: { id } });
+  } else {
+    await prisma.chatRoomMember.deleteMany({
+      where: { roomId: id, userId: req.user!.id },
+    });
+    const io = req.app.get("io") as any;
+    if (io) io.to(id).emit("user-left", { userId: req.user!.id });
+  }
+  res.json({ ok: true });
+});
+
+// Delete a chat message (author or admin)
+router.delete("/rooms/:id/messages/:messageId", async (req: AuthRequest, res) => {
+  const messageId = req.params.messageId as string;
+  const message = await prisma.chatMessage.findUnique({
+    where: { id: messageId },
+  });
+  if (!message) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (message.userId !== req.user!.id && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Not authorized" });
+    return;
+  }
+  await prisma.chatMessage.delete({ where: { id: messageId } });
+  // Notify room
+  const io = req.app.get("io") as any;
+  if (io) io.to(req.params.id).emit("message-deleted", { messageId, roomId: req.params.id });
+  res.json({ ok: true });
+});
+
 export default router;

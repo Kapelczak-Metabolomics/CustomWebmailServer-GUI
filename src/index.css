@@ -218,3 +218,54 @@ button, a, input, select, textarea {
   z-index: 9999;
   transition: width 0.3s ease, opacity 0.3s ease;
 }
+
+/* === Tooltip === */
+.tooltip {
+  position: relative;
+}
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  background: #1e293b;
+  color: #e8edf5;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 10000;
+}
+.tooltip:hover::after {
+  opacity: 1;
+}
+
+/* === Accessible focus for all interactive elements === */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* === Selection color === */
+::selection {
+  background: rgba(40, 150, 232, 0.3);
+  color: inherit;
+}
+
+/* === Smooth scroll === */
+html {
+  scroll-behavior: smooth;
+}
+
+/* === Empty state === */
+.empty-state {
+  animation: fade-in 0.3s ease-out;
+}

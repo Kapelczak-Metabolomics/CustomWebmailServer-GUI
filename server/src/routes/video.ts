@@ -76,4 +76,67 @@ router.post("/rooms/:id/join", async (req: AuthRequest, res) => {
   res.json(member);
 });
 
+// Leave a meeting (set leftAt, preserves history)
+router.post("/rooms/:id/leave", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const room = await prisma.videoRoom.findUnique({ where: { id } });
+  if (!room) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await prisma.videoRoomMember.updateMany({
+    where: { roomId: id, userId: req.user!.id, leftAt: null },
+    data: { leftAt: new Date() },
+  });
+  // Notify other participants via socket
+  const io = req.app.get("io") as any;
+  if (io) io.to(id).emit("user-left", { userId: req.user!.id });
+  res.json({ ok: true });
+});
+
+// Update room name/active (creator or admin)
+router.patch("/rooms/:id", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const room = await prisma.videoRoom.findUnique({ where: { id } });
+  if (!room) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (room.createdBy !== req.user!.id && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Not authorized" });
+    return;
+  }
+  const { name, active } = req.body;
+  const updated = await prisma.videoRoom.update({
+    where: { id },
+    data: {
+      ...(name !== undefined ? { name } : {}),
+      ...(active !== undefined ? { active } : {}),
+    },
+  });
+  res.json(updated);
+});
+
+// Hard delete a meeting (creator or admin only)
+router.delete("/rooms/:id", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const room = await prisma.videoRoom.findUnique({ where: { id } });
+  if (!room) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (room.createdBy !== req.user!.id && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Not authorized" });
+    return;
+  }
+  // Notify all participants that the room is being deleted
+  const io = req.app.get("io") as any;
+  if (io) {
+    io.to(id).emit("room-deleted", { roomId: id });
+  }
+  // Hard delete — cascade removes members
+  await prisma.videoRoom.delete({ where: { id } });
+  res.json({ ok: true });
+});
+
 export default router;

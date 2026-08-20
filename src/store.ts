@@ -12,10 +12,13 @@ import type {
   Priority,
   SavedReply,
   Tag,
+  Team,
+  CustomField,
   User,
   Workflow,
   Role,
 } from "./types";
+import { toast } from "./components/ui/toastStore";
 import { defaultSettings } from "./lib/mock";
 import {
   api,
@@ -49,6 +52,8 @@ interface StoreState {
   articles: KnowledgeBaseArticle[];
   notifications: Notification[];
   settings: AppSettings;
+  teams: Team[];
+  customFields: CustomField[];
   ui: {
     folder: Folder;
     selectedId: string | null;
@@ -171,6 +176,69 @@ interface StoreState {
     },
   ) => Promise<KnowledgeBaseArticle>;
 
+  // delete/update actions
+  deleteMailbox: (id: string) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
+  updateUser: (
+    id: string,
+    data: Partial<User> & { password?: string },
+  ) => Promise<void>;
+  deleteContact: (id: string) => Promise<void>;
+  updateContact: (data: Partial<Contact> & { id: string }) => Promise<void>;
+  deleteContactNote: (contactId: string, noteId: string) => Promise<void>;
+  updateContactNote: (
+    contactId: string,
+    noteId: string,
+    body: string,
+  ) => Promise<void>;
+  deleteSavedReply: (id: string) => Promise<void>;
+  updateSavedReply: (
+    data: Partial<SavedReply> & { id: string },
+  ) => Promise<void>;
+  deleteWorkflow: (id: string) => Promise<void>;
+  updateWorkflow: (
+    data: Partial<Workflow> & { id: string },
+  ) => Promise<void>;
+  deleteArticle: (id: string) => Promise<void>;
+  updateArticle: (
+    data: Partial<KnowledgeBaseArticle> & { id: string },
+  ) => Promise<void>;
+  updateTag: (id: string, data: { name?: string; color?: string }) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
+  deleteMessage: (id: string) => Promise<void>;
+  updateMessage: (id: string, body: string) => Promise<void>;
+  deleteChatRoom: (id: string) => Promise<void>;
+  leaveChatRoom: (id: string) => Promise<void>;
+  deleteVideoRoom: (id: string) => Promise<void>;
+  leaveVideoRoom: (id: string) => Promise<void>;
+
+  // teams
+  createTeam: (data: {
+    name: string;
+    description?: string;
+    memberIds?: string[];
+  }) => Promise<any>;
+  updateTeam: (
+    id: string,
+    data: { name?: string; description?: string },
+  ) => Promise<void>;
+  deleteTeam: (id: string) => Promise<void>;
+  addTeamMember: (teamId: string, userId: string) => Promise<void>;
+  removeTeamMember: (teamId: string, userId: string) => Promise<void>;
+
+  // custom fields
+  createCustomField: (data: {
+    name: string;
+    type: string;
+    options?: string;
+    target?: string;
+  }) => Promise<any>;
+  updateCustomField: (
+    id: string,
+    data: { name?: string; type?: string; options?: string; target?: string },
+  ) => Promise<void>;
+  deleteCustomField: (id: string) => Promise<void>;
+
   // notifications
   addNotification: (title: string, body: string) => void;
   markNotificationRead: (id: string) => void;
@@ -189,6 +257,8 @@ export const useStore = create<StoreState>((set, get) => ({
   articles: [],
   notifications: [],
   settings: defaultSettings,
+  teams: [],
+  customFields: [],
   ui: {
     folder: "inbox",
     selectedId: null,
@@ -250,6 +320,8 @@ export const useStore = create<StoreState>((set, get) => ({
         workflows,
         articles,
         settings,
+        teams,
+        customFields,
       ] = await Promise.all([
         api.listUsers(),
         api.listMailboxes(),
@@ -260,6 +332,8 @@ export const useStore = create<StoreState>((set, get) => ({
         api.listWorkflows(),
         api.listArticles(),
         api.getSettings().catch(() => null),
+        api.listTeams().catch(() => []),
+        api.listCustomFields().catch(() => []),
       ]);
       set({
         users,
@@ -271,6 +345,8 @@ export const useStore = create<StoreState>((set, get) => ({
         savedReplies,
         workflows,
         articles,
+        teams: teams || [],
+        customFields: customFields || [],
         settings: settings
           ? {
               companyName: settings.companyName || "",
@@ -520,6 +596,8 @@ export const useStore = create<StoreState>((set, get) => ({
           : c,
       ),
     }));
+    if (type === "note") toast("Note added", "success");
+    else if (type === "reply") toast("Reply sent", "success");
   },
 
   sendReply: async (conversationId, body, type = "reply") => {
@@ -718,6 +796,223 @@ export const useStore = create<StoreState>((set, get) => ({
     });
     set((state) => ({ articles: [...state.articles, article] }));
     return article;
+  },
+
+  deleteMailbox: async (id) => {
+    await api.deleteMailbox(id);
+    set((state) => ({ mailboxes: state.mailboxes.filter((m) => m.id !== id) }));
+    toast("Mailbox deleted", "success");
+  },
+
+  deleteUser: async (id) => {
+    await api.deleteUser(id);
+    set((state) => ({ users: state.users.filter((u) => u.id !== id) }));
+    toast("User deleted", "success");
+  },
+
+  updateUser: async (id, data) => {
+    const user = await api.updateUser(id, data);
+    set((state) => ({
+      users: state.users.map((u) => (u.id === id ? user : u)),
+      currentUser: state.currentUser?.id === id ? user : state.currentUser,
+    }));
+  },
+
+  deleteContact: async (id) => {
+    await api.deleteContact(id);
+    set((state) => ({ contacts: state.contacts.filter((c) => c.id !== id) }));
+    toast("Contact deleted", "success");
+  },
+
+  updateContact: async (data) => {
+    const contact = await api.updateContact(data.id, data);
+    set((state) => ({
+      contacts: state.contacts.map((c) => (c.id === data.id ? contact : c)),
+    }));
+  },
+
+  deleteContactNote: async (contactId, noteId) => {
+    await api.deleteContactNote(contactId, noteId);
+    set((state) => ({
+      contacts: state.contacts.map((c) =>
+        c.id === contactId
+          ? { ...c, notes: c.notes.filter((n) => n.id !== noteId) }
+          : c,
+      ),
+    }));
+  },
+
+  updateContactNote: async (contactId, noteId, body) => {
+    await api.updateContactNote(contactId, noteId, body);
+    set((state) => ({
+      contacts: state.contacts.map((c) =>
+        c.id === contactId
+          ? {
+              ...c,
+              notes: c.notes.map((n) =>
+                n.id === noteId ? { ...n, body } : n,
+              ),
+            }
+          : c,
+      ),
+    }));
+  },
+
+  deleteSavedReply: async (id) => {
+    await api.deleteSavedReply(id);
+    set((state) => ({
+      savedReplies: state.savedReplies.filter((r) => r.id !== id),
+    }));
+    toast("Saved reply deleted", "success");
+  },
+
+  updateSavedReply: async (data) => {
+    const reply = await api.updateSavedReply(data.id, data);
+    set((state) => ({
+      savedReplies: state.savedReplies.map((r) =>
+        r.id === data.id ? reply : r,
+      ),
+    }));
+  },
+
+  deleteWorkflow: async (id) => {
+    await api.deleteWorkflow(id);
+    set((state) => ({
+      workflows: state.workflows.filter((w) => w.id !== id),
+    }));
+    toast("Workflow deleted", "success");
+  },
+
+  updateWorkflow: async (data) => {
+    const workflow = await api.updateWorkflow(data.id, data);
+    set((state) => ({
+      workflows: state.workflows.map((w) =>
+        w.id === data.id ? workflow : w,
+      ),
+    }));
+  },
+
+  deleteArticle: async (id) => {
+    await api.deleteArticle(id);
+    set((state) => ({
+      articles: state.articles.filter((a) => a.id !== id),
+    }));
+    toast("Article deleted", "success");
+  },
+
+  updateArticle: async (data) => {
+    const article = await api.updateArticle(data.id, data);
+    set((state) => ({
+      articles: state.articles.map((a) =>
+        a.id === data.id ? article : a,
+      ),
+    }));
+  },
+
+  updateTag: async (id, data) => {
+    await api.updateTag(id, data);
+    set((state) => ({
+      tags: state.tags.map((t) => (t.id === id ? { ...t, ...data } : t)),
+    }));
+  },
+
+  deleteConversation: async (id) => {
+    await api.deleteConversation(id);
+    set((state) => ({
+      conversations: state.conversations.filter((c) => c.id !== id),
+      messages: state.messages.filter((m) => m.conversationId !== id),
+      ui: state.ui.selectedId === id ? { ...state.ui, selectedId: null } : state.ui,
+    }));
+    toast("Conversation deleted", "success");
+  },
+
+  deleteMessage: async (id) => {
+    await api.deleteMessage(id);
+    set((state) => ({
+      messages: state.messages.filter((m) => m.id !== id),
+    }));
+    toast("Message deleted", "success");
+  },
+
+  updateMessage: async (id, body) => {
+    const msg = await api.updateMessage(id, body);
+    set((state) => ({
+      messages: state.messages.map((m) => (m.id === id ? msg : m)),
+    }));
+  },
+
+  deleteChatRoom: async (id) => {
+    await api.deleteChatRoom(id);
+    toast("Chat room deleted", "success");
+  },
+
+  leaveChatRoom: async (id) => {
+    await api.leaveChatRoom(id);
+    toast("Left chat room", "info");
+  },
+
+  deleteVideoRoom: async (id) => {
+    await api.deleteVideoRoom(id);
+    toast("Meeting deleted", "success");
+  },
+
+  leaveVideoRoom: async (id) => {
+    await api.leaveVideoRoom(id);
+    toast("Left meeting", "info");
+  },
+
+  // Teams
+  createTeam: async (data: { name: string; description?: string; memberIds?: string[] }) => {
+    const team = await api.createTeam(data);
+    set((state) => ({ teams: [...state.teams, team] }));
+    return team;
+  },
+
+  updateTeam: async (id: string, data: { name?: string; description?: string }) => {
+    const team = await api.updateTeam(id, data);
+    set((state) => ({
+      teams: state.teams.map((t) => (t.id === id ? team : t)),
+    }));
+  },
+
+  deleteTeam: async (id: string) => {
+    await api.deleteTeam(id);
+    set((state) => ({ teams: state.teams.filter((t) => t.id !== id) }));
+    toast("Team deleted", "success");
+  },
+
+  addTeamMember: async (teamId: string, userId: string) => {
+    await api.addTeamMember(teamId, userId);
+    const teams = await api.listTeams();
+    set({ teams });
+  },
+
+  removeTeamMember: async (teamId: string, userId: string) => {
+    await api.removeTeamMember(teamId, userId);
+    const teams = await api.listTeams();
+    set({ teams });
+  },
+
+  // Custom fields
+  createCustomField: async (data: { name: string; type: string; options?: string; target?: string }) => {
+    const field = await api.createCustomField(data);
+    set((state) => ({ customFields: [...state.customFields, field] }));
+    return field;
+  },
+
+  updateCustomField: async (id: string, data: { name?: string; type?: string; options?: string; target?: string }) => {
+    const field = await api.updateCustomField(id, data);
+    set((state) => ({
+      customFields: state.customFields.map((f) => (f.id === id ? field : f)),
+    }));
+  },
+
+  deleteCustomField: async (id: string) => {
+    await api.deleteCustomField(id);
+    set((state) => ({
+      customFields: state.customFields.filter((f) => f.id !== id),
+    }));
+    toast("Custom field deleted", "success");
   },
 
   addNotification: (title, body) => {

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useTheme } from "../theme";
 import { useStore } from "../store";
 import { api } from "../lib/api";
+import { toast } from "./ui/toastStore";
 import { Icon } from "./Icon";
 import { X, Paperclip } from "lucide-react";
 
@@ -75,7 +76,7 @@ export default function ComposeModal() {
       setPendingAttachments((prev) => [...prev, { name, url }]);
     } catch (err) {
       console.error("Upload failed", err);
-      alert("Failed to upload attachment");
+      toast("Failed to upload attachment", "error");
     }
   }
 

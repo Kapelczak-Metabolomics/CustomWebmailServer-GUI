@@ -13,6 +13,26 @@ router.get("/", async (_req, res) => {
   res.json(articles);
 });
 
+router.get("/:id", async (req, res) => {
+  const id = req.params.id as string;
+  const article = await prisma.article.findUnique({ where: { id } });
+  if (!article) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(article);
+});
+
+router.get("/slug/:slug", async (req, res) => {
+  const slug = req.params.slug as string;
+  const article = await prisma.article.findUnique({ where: { slug } });
+  if (!article) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(article);
+});
+
 router.post("/", async (req: AuthRequest, res) => {
   const { title, body, category, published } = req.body;
   const slug = String(title)

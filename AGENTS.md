@@ -98,3 +98,52 @@ See `.env.example` for all configurable variables. Key ones:
 - `pgdata` — PostgreSQL data
 - `appdata` — App secrets (JWT, admin password)
 - `uploads` — Local attachment storage (when S3 is not configured)
+
+## Feature Set
+
+The application implements a FreeScout-style email/helpdesk platform with:
+
+### Core Features
+- **Mailboxes** — Shared inboxes with IMAP/SMTP configuration, CRUD operations
+- **Conversations** — Threaded messages with replies, internal notes, forwarding, attachments
+- **Status/Priority/Assignment** — Open/pending/closed/spam, priority levels, agent assignment
+- **Tags & Labels** — Color-coded tagging system with CRUD
+- **Folders & Snoozing** — Inbox, assigned, snoozed, trash; snooze with date
+- **Starring & Following** — Star conversations, follow for updates
+- **Contacts & CRM** — Contact management with notes (CRUD), custom fields
+- **Saved Replies** — Reusable reply templates with CRUD
+- **Workflows** — Automated workflow rules (admin-managed)
+- **Search & Filtering** — Full-text search, status/priority/mailbox filters
+- **Reports** — Ticket metrics by status/priority/mailbox, calculated avg resolution time
+- **Knowledge Base** — Published articles with public portal access
+- **Public Portal** — End-user ticket submission, ticket lookup, satisfaction ratings
+- **Admin/Settings** — User management, mailbox config, module toggles, brand customization
+- **Team Chat** — Direct messages, group chats, read receipts (per-user toggle, admin force)
+- **Video Meetings** — WebRTC video rooms with TURN, create/delete/leave, signaling
+
+### Advanced Models
+- **Teams** — Team creation with member management (admin)
+- **Custom Fields** — Configurable fields (text/number/date/select) for contacts
+- **Checklists** — Per-conversation checklists with items, progress tracking
+- **Time Tracking** — Log time on conversations, total time, entry management
+- **Satisfaction Ratings** — 1-5 star ratings with comments, portal submission
+
+### Security
+- **XSS Protection** — All HTML rendered through DOMPurify sanitizer
+- **Password Reset** — Forgot-password flow with email reset links
+- **Authorization** — Role-based access (admin/agent/customer), ownership checks
+- **Cookie Security** — HttpOnly, SameSite cookies; secure cookie parsing utility
+
+### UI/UX
+- **Toast Notifications** — Replaces browser alerts for user feedback
+- **Dark/Light Theme** — Full theme system with tokens
+- **Responsive Design** — Split-screen login, adaptive layouts
+- **Accessibility** — Focus-visible states, reduced-motion support, ARIA labels
+- **Animations** — Fade-in, scale-in, slide-in, hover-lift, skeleton shimmer
+
+### API Endpoints
+- Auth: login, logout, register, me, change-password, forgot-password, reset-password
+- CRUD: conversations, messages, mailboxes, contacts, tags, users, saved replies, workflows, articles
+- Advanced: teams, checklists, time tracking, satisfaction ratings, custom fields
+- Realtime: Socket.IO for chat, video signaling, receipt updates
+- Portal: public articles, ticket submission, ticket lookup, satisfaction ratings

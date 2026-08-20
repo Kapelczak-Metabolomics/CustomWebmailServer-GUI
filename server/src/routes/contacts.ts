@@ -86,6 +86,16 @@ router.post("/:id/notes", async (req: AuthRequest, res) => {
   res.status(201).json(note);
 });
 
+router.patch("/:id/notes/:noteId", async (req: AuthRequest, res) => {
+  const noteId = req.params.noteId as string;
+  const { body } = req.body;
+  const note = await prisma.contactNote.update({
+    where: { id: noteId },
+    data: { body },
+  });
+  res.json(note);
+});
+
 router.delete("/:id/notes/:noteId", async (req: AuthRequest, res) => {
   const noteId = req.params.noteId as string;
   await prisma.contactNote.delete({ where: { id: noteId } });

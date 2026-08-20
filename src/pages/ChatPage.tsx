@@ -3,6 +3,7 @@ import { useTheme } from "../theme";
 import Layout from "../components/Layout";
 import { useStore } from "../store";
 import { api } from "../lib/api";
+import { getCookie } from "../lib/utils";
 import { io, type Socket } from "socket.io-client";
 import {
   Send,
@@ -15,6 +16,8 @@ import {
   CheckCheck,
   Eye,
   EyeOff,
+  Trash2,
+  LogOut,
 } from "lucide-react";
 
 interface ChatUser {
@@ -69,6 +72,8 @@ export default function ChatPage() {
   const { tokens: t } = useTheme();
   const currentUser = useStore((s) => s.currentUser);
   const users = useStore((s) => s.users);
+  const deleteChatRoom = useStore((s) => s.deleteChatRoom);
+  const leaveChatRoom = useStore((s) => s.leaveChatRoom);
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -102,7 +107,7 @@ export default function ChatPage() {
   // Connect socket once
   useEffect(() => {
     if (!currentUser) return;
-    const token = document.cookie.match(/token=([^;]+)/)?.[1] || "";
+    const token = getCookie("token") || "";
     const socket = io("/", {
       transports: ["websocket"],
       auth: { token },
@@ -290,6 +295,41 @@ export default function ChatPage() {
     }
   }
 
+  async function handleDeleteRoom(room: ChatRoom) {
+    const name = getRoomDisplayName(room);
+    if (!window.confirm(`Delete conversation with ${name}? This cannot be undone.`)) return;
+    try {
+      await deleteChatRoom(room.id);
+      setRooms((prev) => prev.filter((r) => r.id !== room.id));
+      if (selectedRoom?.id === room.id) setSelectedRoom(null);
+    } catch (err) {
+      console.error("Failed to delete chat room:", err);
+    }
+  }
+
+  async function handleLeaveRoom(room: ChatRoom) {
+    const name = getRoomDisplayName(room);
+    if (!window.confirm(`Leave "${name}"?`)) return;
+    try {
+      await leaveChatRoom(room.id);
+      setRooms((prev) => prev.filter((r) => r.id !== room.id));
+      if (selectedRoom?.id === room.id) setSelectedRoom(null);
+    } catch (err) {
+      console.error("Failed to leave chat room:", err);
+    }
+  }
+
+  async function handleDeleteMessage(msg: ChatMessage) {
+    if (!selectedRoom) return;
+    if (!window.confirm("Delete this message?")) return;
+    try {
+      await api.deleteChatMessage(selectedRoom.id, msg.id);
+      setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+    } catch (err) {
+      console.error("Failed to delete message:", err);
+    }
+  }
+
   // Get receipt status for a message
   function getReceiptStatus(msg: ChatMessage): {
     delivered: boolean;
@@ -402,10 +442,10 @@ export default function ChatPage() {
               </div>
             ) : (
               sortedRooms.map((room) => (
-                <button
+                <div
                   key={room.id}
                   onClick={() => setSelectedRoom(room)}
-                  className="w-full text-left px-4 py-3 border-b transition-colors hover:opacity-80"
+                  className="group w-full text-left px-4 py-3 border-b transition-colors hover:opacity-80 cursor-pointer"
                   style={{
                     borderColor: t.divider,
                     backgroundColor:
@@ -450,8 +490,19 @@ export default function ChatPage() {
                           : `${room.members.length} members`}
                       </div>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteRoom(room);
+                      }}
+                      className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                      style={{ color: t.textFaint }}
+                      title={room.direct ? "Delete conversation" : "Delete conversation"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                </button>
+                </div>
               ))
             )}
           </div>
@@ -509,20 +560,47 @@ export default function ChatPage() {
                   </div>
                 </div>
                 {/* Receipt status indicator in header */}
-                <div
-                  className="text-xs flex items-center gap-1.5"
-                  style={{ color: t.textMuted }}
-                >
-                  {receiptsEnabled ? (
-                    <>
-                      <CheckCheck className="w-3.5 h-3.5" style={{ color: t.accent }} />
-                      <span>Read receipts on</span>
-                    </>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="text-xs flex items-center gap-1.5"
+                    style={{ color: t.textMuted }}
+                  >
+                    {receiptsEnabled ? (
+                      <>
+                        <CheckCheck className="w-3.5 h-3.5" style={{ color: t.accent }} />
+                        <span>Read receipts on</span>
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-3.5 h-3.5" />
+                        <span>Read receipts off</span>
+                      </>
+                    )}
+                  </div>
+                  {selectedRoom.direct ? (
+                    <button
+                      onClick={() => handleDeleteRoom(selectedRoom)}
+                      className="p-2 rounded-lg transition-colors"
+                      style={{
+                        color: t.textFaint,
+                        backgroundColor: t.inputBg,
+                      }}
+                      title="Delete conversation"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   ) : (
-                    <>
-                      <EyeOff className="w-3.5 h-3.5" />
-                      <span>Read receipts off</span>
-                    </>
+                    <button
+                      onClick={() => handleLeaveRoom(selectedRoom)}
+                      className="p-2 rounded-lg transition-colors"
+                      style={{
+                        color: t.textFaint,
+                        backgroundColor: t.inputBg,
+                      }}
+                      title="Leave group"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </button>
                   )}
                 </div>
               </div>
@@ -545,7 +623,7 @@ export default function ChatPage() {
                     return (
                       <div
                         key={msg.id}
-                        className={`flex flex-col ${
+                        className={`group/msg flex flex-col ${
                           isMe ? "items-end" : "items-start"
                         }`}
                       >
@@ -568,16 +646,28 @@ export default function ChatPage() {
                             })}
                           </span>
                         </div>
-                        <div
-                          className="max-w-[70%] px-4 py-2.5 rounded-2xl text-sm"
-                          style={{
-                            backgroundColor: isMe ? t.accent : t.inputBg,
-                            color: isMe ? "#fff" : t.text,
-                            borderBottomRightRadius: isMe ? "4px" : undefined,
-                            borderBottomLeftRadius: !isMe ? "4px" : undefined,
-                          }}
-                        >
-                          {msg.body}
+                        <div className="flex items-center gap-2">
+                          {isMe && (
+                            <button
+                              onClick={() => handleDeleteMessage(msg)}
+                              className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded"
+                              style={{ color: t.textFaint }}
+                              title="Delete message"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <div
+                            className="max-w-[70%] px-4 py-2.5 rounded-2xl text-sm"
+                            style={{
+                              backgroundColor: isMe ? t.accent : t.inputBg,
+                              color: isMe ? "#fff" : t.text,
+                              borderBottomRightRadius: isMe ? "4px" : undefined,
+                              borderBottomLeftRadius: !isMe ? "4px" : undefined,
+                            }}
+                          >
+                            {msg.body}
+                          </div>
                         </div>
                         {/* Receipt indicators for own messages */}
                         {isMe && (

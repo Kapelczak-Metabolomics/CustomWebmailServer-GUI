@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import Layout from "../components/Layout";
 import { useTheme } from "../theme";
 import { useStore } from "../store";
+import { computeAvgResolution } from "../lib/utils";
 
 export default function ReportsPage() {
   const { tokens: t } = useTheme();
@@ -130,7 +131,7 @@ export default function ReportsPage() {
               Avg resolution
             </div>
             <div className="text-2xl font-semibold" style={{ color: t.text }}>
-              ~2h
+              {computeAvgResolution(conversations)}
             </div>
           </div>
         </div>

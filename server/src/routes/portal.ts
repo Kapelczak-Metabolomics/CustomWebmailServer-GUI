@@ -117,4 +117,79 @@ router.get("/tickets/:number", async (req, res) => {
   });
 });
 
+// Public: submit satisfaction rating for a ticket
+router.post("/tickets/:number/rating", async (req, res) => {
+  const number = parseInt(req.params.number);
+  const email = (req.query.email as string || "").trim().toLowerCase();
+  const { rating, comment } = req.body;
+
+  if (!number || !email) {
+    res.status(400).json({ error: "Ticket number and email are required" });
+    return;
+  }
+  if (!rating || rating < 1 || rating > 5) {
+    res.status(400).json({ error: "Rating must be between 1 and 5" });
+    return;
+  }
+
+  const conv = await prisma.conversation.findFirst({
+    where: { number },
+    include: { contact: true },
+  });
+
+  if (!conv || conv.contact.email.toLowerCase() !== email) {
+    res.status(404).json({ error: "Ticket not found" });
+    return;
+  }
+
+  const existing = await prisma.satisfactionRating.findFirst({
+    where: { conversationId: conv.id },
+  });
+
+  let result;
+  if (existing) {
+    result = await prisma.satisfactionRating.update({
+      where: { id: existing.id },
+      data: { rating: parseInt(rating), comment },
+    });
+  } else {
+    result = await prisma.satisfactionRating.create({
+      data: {
+        conversationId: conv.id,
+        rating: parseInt(rating),
+        comment,
+      },
+    });
+  }
+
+  res.status(201).json(result);
+});
+
+// Public: get satisfaction rating for a ticket
+router.get("/tickets/:number/rating", async (req, res) => {
+  const number = parseInt(req.params.number);
+  const email = (req.query.email as string || "").trim().toLowerCase();
+
+  if (!number || !email) {
+    res.status(400).json({ error: "Ticket number and email are required" });
+    return;
+  }
+
+  const conv = await prisma.conversation.findFirst({
+    where: { number },
+    include: { contact: true },
+  });
+
+  if (!conv || conv.contact.email.toLowerCase() !== email) {
+    res.status(404).json({ error: "Ticket not found" });
+    return;
+  }
+
+  const rating = await prisma.satisfactionRating.findFirst({
+    where: { conversationId: conv.id },
+  });
+
+  res.json(rating);
+});
+
 export default router;

@@ -12,6 +12,9 @@ import {
   Building2,
   Plus,
   Save,
+  Trash2,
+  Edit3,
+  X,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -22,13 +25,24 @@ export default function SettingsPage() {
 
   const tags = useStore((s) => s.tags);
   const createTag = useStore((s) => s.createTag);
+  const updateTag = useStore((s) => s.updateTag);
   const savedReplies = useStore((s) => s.savedReplies);
   const addSavedReply = useStore((s) => s.addSavedReply);
+  const updateSavedReply = useStore((s) => s.updateSavedReply);
+  const deleteSavedReply = useStore((s) => s.deleteSavedReply);
 
   const [form, setForm] = useState(settings);
   const [newTag, setNewTag] = useState("");
   const [newReply, setNewReply] = useState({ name: "", body: "" });
   const [showReply, setShowReply] = useState(false);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [editTagForm, setEditTagForm] = useState({ name: "", color: "" });
+  const [editingReply, setEditingReply] = useState<{
+    id: string;
+    name: string;
+    subject: string;
+    body: string;
+  } | null>(null);
   const [brandForm, setBrandForm] = useState({
     companyName: brand?.companyName || "",
     primaryColor: brand?.primaryColor || "#2896E8",
@@ -69,6 +83,44 @@ export default function SettingsPage() {
     await addSavedReply({ name: newReply.name, body: newReply.body });
     setNewReply({ name: "", body: "" });
     setShowReply(false);
+  }
+
+  function startEditTag(id: string, name: string, color: string) {
+    setEditingTagId(id);
+    setEditTagForm({ name, color });
+  }
+
+  async function saveEditTag(id: string) {
+    if (!editTagForm.name.trim()) return;
+    await updateTag(id, {
+      name: editTagForm.name.trim(),
+      color: editTagForm.color,
+    });
+    setEditingTagId(null);
+  }
+
+  async function removeTag(id: string) {
+    if (!window.confirm("Delete this tag?")) return;
+    await api.deleteTag(id);
+    useStore.setState((state) => ({
+      tags: state.tags.filter((t) => t.id !== id),
+    }));
+  }
+
+  async function saveEditReply() {
+    if (!editingReply || !editingReply.name.trim()) return;
+    await updateSavedReply({
+      id: editingReply.id,
+      name: editingReply.name.trim(),
+      subject: editingReply.subject,
+      body: editingReply.body,
+    });
+    setEditingReply(null);
+  }
+
+  async function removeSavedReply(id: string) {
+    if (!window.confirm("Delete this saved reply?")) return;
+    await deleteSavedReply(id);
   }
 
   return (
@@ -221,19 +273,86 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <Section icon={Tag} title="Tags">
               <div className="flex flex-wrap gap-2 mb-3">
-                {tags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="text-xs px-2 py-1 rounded-full"
-                    style={{
-                      backgroundColor: `${tag.color}22`,
-                      color: tag.color,
-                      border: `1px solid ${tag.color}40`,
-                    }}
-                  >
-                    {tag.name}
-                  </span>
-                ))}
+                {tags.map((tag) =>
+                  editingTagId === tag.id ? (
+                    <div
+                      key={tag.id}
+                      className="flex items-center gap-2 px-2 py-1 rounded-full"
+                      style={{
+                        backgroundColor: t.inputBg,
+                        border: `1px solid ${t.inputBorder}`,
+                      }}
+                    >
+                      <input
+                        type="color"
+                        value={editTagForm.color}
+                        onChange={(e) =>
+                          setEditTagForm({
+                            ...editTagForm,
+                            color: e.target.value,
+                          })
+                        }
+                        className="w-5 h-5 rounded-full border-0 bg-transparent cursor-pointer"
+                      />
+                      <input
+                        value={editTagForm.name}
+                        onChange={(e) =>
+                          setEditTagForm({
+                            ...editTagForm,
+                            name: e.target.value,
+                          })
+                        }
+                        className="text-xs px-1 py-0.5 rounded outline-none w-24"
+                        style={{
+                          backgroundColor: t.inputBg,
+                          color: t.text,
+                        }}
+                      />
+                      <button
+                        onClick={() => saveEditTag(tag.id)}
+                        className="text-xs font-semibold"
+                        style={{ color: t.accent }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingTagId(null)}
+                        className="text-xs"
+                        style={{ color: t.textSub }}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      key={tag.id}
+                      className="text-xs px-2 py-1 rounded-full flex items-center gap-1.5"
+                      style={{
+                        backgroundColor: `${tag.color}22`,
+                        color: tag.color,
+                        border: `1px solid ${tag.color}40`,
+                      }}
+                    >
+                      {tag.name}
+                      <button
+                        onClick={() =>
+                          startEditTag(tag.id, tag.name, tag.color)
+                        }
+                        className="opacity-60 hover:opacity-100"
+                        title="Edit tag"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => removeTag(tag.id)}
+                        className="opacity-60 hover:opacity-100"
+                        title="Delete tag"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ),
+                )}
               </div>
               <div className="flex gap-2">
                 <input
@@ -265,8 +384,37 @@ export default function SettingsPage() {
                     className="p-2 rounded-lg text-sm"
                     style={{ backgroundColor: t.readLeftBg }}
                   >
-                    <div className="font-medium" style={{ color: t.text }}>
-                      {sr.name}
+                    <div
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <div className="font-medium truncate" style={{ color: t.text }}>
+                        {sr.name}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() =>
+                            setEditingReply({
+                              id: sr.id,
+                              name: sr.name,
+                              subject: sr.subject,
+                              body: sr.body,
+                            })
+                          }
+                          className="opacity-60 hover:opacity-100"
+                          title="Edit reply"
+                          style={{ color: t.textSub }}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => removeSavedReply(sr.id)}
+                          className="opacity-60 hover:opacity-100"
+                          title="Delete reply"
+                          style={{ color: t.textSub }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                     <div
                       className="text-xs truncate"
@@ -334,6 +482,95 @@ export default function SettingsPage() {
             </Section>
           </div>
         </div>
+
+        {editingReply && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+            onClick={() => setEditingReply(null)}
+          >
+            <div
+              className="w-full max-w-md rounded-xl p-5 space-y-3"
+              style={{
+                backgroundColor: t.card,
+                border: `1px solid ${t.cardBorder}`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="flex items-center justify-between"
+              >
+                <h3
+                  className="text-sm font-semibold"
+                  style={{ color: t.text }}
+                >
+                  Edit saved reply
+                </h3>
+                <button
+                  onClick={() => setEditingReply(null)}
+                  style={{ color: t.textSub }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <input
+                value={editingReply.name}
+                onChange={(e) =>
+                  setEditingReply({ ...editingReply, name: e.target.value })
+                }
+                placeholder="Name"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{
+                  backgroundColor: t.inputBg,
+                  border: `1px solid ${t.inputBorder}`,
+                  color: t.text,
+                }}
+              />
+              <input
+                value={editingReply.subject}
+                onChange={(e) =>
+                  setEditingReply({ ...editingReply, subject: e.target.value })
+                }
+                placeholder="Subject"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{
+                  backgroundColor: t.inputBg,
+                  border: `1px solid ${t.inputBorder}`,
+                  color: t.text,
+                }}
+              />
+              <textarea
+                value={editingReply.body}
+                onChange={(e) =>
+                  setEditingReply({ ...editingReply, body: e.target.value })
+                }
+                placeholder="Reply body"
+                className="w-full min-h-[120px] px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                style={{
+                  backgroundColor: t.inputBg,
+                  border: `1px solid ${t.inputBorder}`,
+                  color: t.text,
+                }}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setEditingReply(null)}
+                  className="text-xs"
+                  style={{ color: t.textSub }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveEditReply}
+                  className="text-xs px-3 py-1.5 rounded-lg text-white"
+                  style={{ background: t.accentGrad }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

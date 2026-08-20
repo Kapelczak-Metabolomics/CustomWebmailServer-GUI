@@ -17,6 +17,16 @@ router.get("/", async (_req, res) => {
   res.json(workflows);
 });
 
+router.get("/:id", async (req, res) => {
+  const id = req.params.id as string;
+  const workflow = await prisma.workflow.findUnique({ where: { id } });
+  if (!workflow) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(workflow);
+});
+
 router.post("/", requireRole("admin"), async (req: AuthRequest, res) => {
   const { name, active, conditions, actions } = req.body;
   const workflow = await prisma.workflow.create({

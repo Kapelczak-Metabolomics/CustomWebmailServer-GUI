@@ -57,3 +57,38 @@ export function stripHtml(html: string) {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+export function getCookie(name: string): string | null {
+  const cookies = document.cookie.split(";");
+  for (const c of cookies) {
+    const [k, v] = c.trim().split("=");
+    if (k === name) return decodeURIComponent(v);
+  }
+  return null;
+}
+
+export function computeAvgResolution(conversations: { status: string; createdAt: string; updatedAt: string }[]): string {
+  const closed = conversations.filter((c) => c.status === "closed");
+  if (closed.length === 0) return "—";
+  const totalMs = closed.reduce((sum, c) => {
+    const created = new Date(c.createdAt).getTime();
+    const updated = new Date(c.updatedAt).getTime();
+    return sum + (updated - created);
+  }, 0);
+  const avgMs = totalMs / closed.length;
+  const hours = avgMs / (1000 * 60 * 60);
+  if (hours < 1) return `${Math.round(avgMs / (1000 * 60))}m`;
+  if (hours < 24) return `${hours.toFixed(1)}h`;
+  return `${(hours / 24).toFixed(1)}d`;
+}
+
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+export function cn(...classes: (string | false | undefined | null)[]): string {
+  return classes.filter(Boolean).join(" ");
+}

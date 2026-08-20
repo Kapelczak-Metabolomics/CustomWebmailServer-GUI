@@ -13,6 +13,16 @@ router.get("/", async (_req, res) => {
   res.json(replies);
 });
 
+router.get("/:id", async (req, res) => {
+  const id = req.params.id as string;
+  const reply = await prisma.savedReply.findUnique({ where: { id } });
+  if (!reply) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(reply);
+});
+
 router.post("/", async (req: AuthRequest, res) => {
   const { name, subject, body, mailboxId } = req.body;
   const reply = await prisma.savedReply.create({

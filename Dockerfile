@@ -36,18 +36,18 @@ RUN mkdir -p /app/data /app/uploads
 
 # Default env
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=18300
 ENV APP_HOST=0.0.0.0
 ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mail?schema=public
 ENV REDIS_URL=redis://localhost:6379
-ENV CLIENT_URL=http://localhost:3000
+ENV CLIENT_URL=http://localhost:18300
 
-EXPOSE 3000
+EXPOSE 18300
 
 # Persistent data volumes
 VOLUME ["/app/data", "/app/uploads"]
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget --spider -q "http://localhost:${PORT:-3000}/api/health" || exit 1
+  CMD wget --spider -q "http://localhost:${PORT:-18300}/api/health" || exit 1
 
 CMD ["sh", "-c", "mkdir -p /app/data /app/uploads && ./node_modules/.bin/prisma migrate deploy && node dist/scripts/seed.js && node dist/index.js"]

@@ -4,6 +4,7 @@ import { ThemeProvider } from "./theme";
 import { useStore } from "./store";
 import type { Role } from "./types";
 import LoginPage from "./pages/LoginPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import InboxPage from "./pages/InboxPage";
 import ContactsPage from "./pages/ContactsPage";
@@ -60,6 +61,7 @@ export default function App() {
         <AuthLoader>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
               path="/"
               element={

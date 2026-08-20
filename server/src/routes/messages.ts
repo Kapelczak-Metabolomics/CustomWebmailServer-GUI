@@ -95,4 +95,52 @@ router.get("/:id", async (req, res) => {
   res.json(message);
 });
 
+// Edit a message (author only, replies/notes only)
+router.patch("/:id", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const message = await prisma.message.findUnique({ where: { id } });
+  if (!message) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (message.authorId !== req.user!.id) {
+    res.status(403).json({ error: "Not authorized" });
+    return;
+  }
+  if (message.type === "customer") {
+    res.status(400).json({ error: "Cannot edit customer messages" });
+    return;
+  }
+  const { body } = req.body;
+  const updated = await prisma.message.update({
+    where: { id },
+    data: {
+      body,
+      bodyText: body,
+      editedAt: new Date(),
+    },
+    include: {
+      author: { select: { id: true, name: true, email: true } },
+      attachments: true,
+    },
+  });
+  res.json(updated);
+});
+
+// Delete a message (author or admin)
+router.delete("/:id", async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const message = await prisma.message.findUnique({ where: { id } });
+  if (!message) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (message.authorId !== req.user!.id && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Not authorized" });
+    return;
+  }
+  await prisma.message.delete({ where: { id } });
+  res.json({ ok: true });
+});
+
 export default router;
